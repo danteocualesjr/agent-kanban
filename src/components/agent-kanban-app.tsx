@@ -5,17 +5,24 @@ import {
   ArrowClockwiseIcon,
   CaretLeftIcon,
   CaretRightIcon,
+  CheckCircleIcon,
+  CircleDashedIcon,
+  CircleNotchIcon,
   CirclesFourIcon,
   ClockIcon,
   FileIcon,
   GitBranchIcon,
+  HourglassIcon,
   ImageSquareIcon,
   KanbanIcon,
   LinkIcon,
   MagnifyingGlassIcon,
   PlayIcon,
   PlusIcon,
+  RocketLaunchIcon,
   SignOutIcon,
+  WarningCircleIcon,
+  XCircleIcon,
   XIcon,
 } from "@phosphor-icons/react"
 
@@ -277,7 +284,7 @@ export function AgentKanbanApp() {
             </Button>
           ) : (
             <>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-primary shadow-sm shadow-primary/40 text-primary-foreground">
                 <KanbanIcon aria-hidden="true" className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
@@ -357,7 +364,7 @@ export function AgentKanbanApp() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-sm">
           <div className="relative flex min-w-48 flex-1 items-center">
             <MagnifyingGlassIcon
               aria-hidden="true"
@@ -410,23 +417,24 @@ export function AgentKanbanApp() {
           </Select>
 
           <div className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground xl:flex">
-            <span>{visibleAgents.length} shown</span>
+            <span>{visibleAgents.length} agent{visibleAgents.length !== 1 ? "s" : ""}</span>
             {isLoading ? (
-              <Badge variant="secondary">Syncing</Badge>
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+                <CircleNotchIcon aria-hidden="true" className="size-3 animate-spin" />
+                Syncing
+              </span>
             ) : (
-              <Badge variant="outline">Live SDK data</Badge>
+              <Badge variant="outline">Live</Badge>
             )}
           </div>
           <div className="shrink-0 xl:hidden">
             {isLoading ? (
-              <Badge variant="secondary">Syncing</Badge>
-            ) : (
-              <Badge variant="outline">Live SDK data</Badge>
-            )}
+              <CircleNotchIcon aria-hidden="true" className="size-4 animate-spin text-primary" />
+            ) : null}
           </div>
 
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-            <ArrowClockwiseIcon data-icon="inline-start" />
+            <ArrowClockwiseIcon data-icon="inline-start" className={isLoading ? "animate-spin" : ""} />
             Refresh
           </Button>
           <Button size="sm" onClick={() => setIsCreateOpen(true)}>
@@ -478,13 +486,23 @@ export function AgentKanbanApp() {
 
 function LoadingScreen() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Loading Agent Kanban</CardTitle>
-          <CardDescription>Checking for a saved Cursor API key.</CardDescription>
-        </CardHeader>
-      </Card>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.68_0.18_264_/_0.12),transparent)]"
+      />
+      <div className="relative flex flex-col items-center gap-4 text-center">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30">
+          <KanbanIcon aria-hidden="true" className="size-7 text-primary-foreground" />
+        </div>
+        <div>
+          <div className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
+            <CircleNotchIcon aria-hidden="true" className="size-4 animate-spin text-primary" />
+            Loading Agent Kanban
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Checking for a saved API key…</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -524,61 +542,86 @@ function OnboardingScreen({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-sm border bg-card shadow-xl">
-        <CardHeader className="gap-1">
-          <CardTitle>Connect Cursor</CardTitle>
-          <CardDescription>
-            Enter an API key to load your cloud agents.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-            <label className="flex flex-col gap-1.5 text-sm font-medium">
-              API key
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="crsr_..."
-                autoComplete="off"
-                aria-invalid={Boolean(error)}
-              />
-            </label>
-            <label className="flex items-start gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 accent-primary"
-                checked={rememberKey}
-                onChange={(event) => setRememberKey(event.target.checked)}
-              />
-              <span>
-                Remember this key on this machine at{" "}
-                <code className="rounded bg-muted px-1 py-0.5">~/.agent-kanban</code>.
-              </span>
-            </label>
-            {error ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </div>
-            ) : null}
-            <Button type="submit" disabled={!apiKey.trim() || isSubmitting}>
-              {isSubmitting ? "Validating..." : "Continue"}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="justify-end text-xs text-muted-foreground">
-          <a
-            className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
-            href="https://cursor.com/dashboard/integrations"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Get key
-            <LinkIcon aria-hidden="true" className="size-3.5" />
-          </a>
-        </CardFooter>
-      </Card>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.68_0.18_264_/_0.18),transparent)]"
+      />
+      <div className="relative w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30">
+            <KanbanIcon aria-hidden="true" className="size-7 text-primary-foreground" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Agent Kanban</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A kanban board for your Cursor Cloud Agents
+          </p>
+        </div>
+        <Card className="border border-border/60 bg-card/90 shadow-2xl backdrop-blur-sm">
+          <CardHeader className="gap-1 pb-2">
+            <CardTitle className="text-base">Connect your Cursor account</CardTitle>
+            <CardDescription>
+              Enter your API key to load cloud agents.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+              <label className="flex flex-col gap-1.5 text-sm font-medium">
+                API key
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder="crsr_..."
+                  autoComplete="off"
+                  aria-invalid={Boolean(error)}
+                  className="font-mono"
+                />
+              </label>
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 accent-primary"
+                  checked={rememberKey}
+                  onChange={(event) => setRememberKey(event.target.checked)}
+                />
+                <span>
+                  Remember this key on this machine at{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">~/.agent-kanban</code>.
+                </span>
+              </label>
+              {error ? (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <WarningCircleIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  {error}
+                </div>
+              ) : null}
+              <Button type="submit" disabled={!apiKey.trim() || isSubmitting} className="mt-1">
+                {isSubmitting ? (
+                  <>
+                    <CircleNotchIcon data-icon="inline-start" className="animate-spin" />
+                    Validating…
+                  </>
+                ) : (
+                  "Continue"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-between gap-2 border-t border-border/40 text-xs text-muted-foreground">
+            <span>Need an API key?</span>
+            <a
+              className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+              href="https://cursor.com/dashboard/integrations"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Get one at cursor.com
+              <LinkIcon aria-hidden="true" className="size-3" />
+            </a>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   )
 }
@@ -593,13 +636,17 @@ function BoardColumn({
   agents: AgentCard[]
 }) {
   return (
-    <section className="flex w-80 shrink-0 flex-col rounded-xl bg-muted/20">
-      <header className="flex items-center justify-between px-3 py-2">
+    <section className="flex w-80 shrink-0 flex-col rounded-xl border border-border/40 bg-muted/10">
+      <header className="flex items-center justify-between rounded-t-xl border-b border-border/40 bg-muted/20 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <Icon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-          <h2 className="truncate text-sm font-medium">{title}</h2>
+          <span className="flex size-5 items-center justify-center rounded-md bg-background/60">
+            <Icon aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
+          </span>
+          <h2 className="truncate text-sm font-semibold">{title}</h2>
         </div>
-        <Badge variant="secondary">{agents.length}</Badge>
+        <span className="flex size-5 items-center justify-center rounded-full bg-background/60 text-xs font-medium text-muted-foreground ring-1 ring-border/60">
+          {agents.length}
+        </span>
       </header>
       <div className="flex flex-col gap-2 p-2">
         {agents.map((agent) => (
@@ -734,13 +781,18 @@ function GroupOptionContent({ option }: { option: SelectableGroupOption }) {
 function AgentCardPreview({ agent }: { agent: AgentCard }) {
   const previewArtifact = getPreviewArtifact(agent.artifacts)
   const hasCardContent = Boolean(agent.latestMessage || previewArtifact)
+  const statusMeta = getStatusMeta(agent.status)
 
   return (
     <Card
       size="sm"
-      className="gap-3 bg-card/70 ring-border/60 transition-colors hover:bg-card/90"
+      className="relative gap-3 bg-card/70 ring-border/60 transition-all hover:bg-card hover:-translate-y-px hover:shadow-md hover:shadow-black/20"
     >
-      <CardHeader className="gap-2">
+      <div
+        aria-hidden="true"
+        className={cn("absolute inset-y-0 left-0 w-[3px] rounded-l-xl", statusMeta.dotClass)}
+      />
+      <CardHeader className="gap-2 pl-4">
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="line-clamp-2">{agent.title}</CardTitle>
           <StatusBadge status={agent.status} />
@@ -751,7 +803,7 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
         </CardDescription>
       </CardHeader>
       {hasCardContent ? (
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-3 pl-4">
           {agent.latestMessage ? (
             <p className="line-clamp-2 text-sm text-muted-foreground">
               {agent.latestMessage}
@@ -760,15 +812,19 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
           {previewArtifact ? <ArtifactTile artifact={previewArtifact} /> : null}
         </CardContent>
       ) : null}
-      <CardFooter className="flex-wrap justify-between gap-2 border-t-0 bg-transparent text-xs text-muted-foreground">
-        <span>{formatRelativeTime(agent.updatedAt ?? agent.createdAt)}</span>
+      <CardFooter className="flex-wrap justify-between gap-2 border-t-0 bg-transparent pl-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <ClockIcon aria-hidden="true" className="size-3" />
+          {formatRelativeTime(agent.updatedAt ?? agent.createdAt)}
+        </span>
         {agent.prUrl ? (
           <a
             href={agent.prUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-foreground underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-primary underline-offset-4 hover:bg-primary/20"
           >
+            <GitBranchIcon aria-hidden="true" className="size-3" />
             PR
           </a>
         ) : null}
@@ -1078,9 +1134,9 @@ function SidebarItem({
       onClick={onSelect}
       title={collapsed ? `${label}: ${count}` : undefined}
       className={cn(
-        "relative flex w-full items-center gap-2 rounded-lg text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0",
+        "relative flex w-full items-center gap-2 rounded-lg text-muted-foreground transition-all outline-none hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0",
         collapsed ? "size-11 justify-center p-0" : "px-2 py-1.5 text-left",
-        active && "bg-sidebar-accent text-sidebar-accent-foreground"
+        active && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
       )}
     >
       <Icon aria-hidden="true" />
@@ -1104,36 +1160,104 @@ function SidebarItem({
 function EmptyBoard({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex min-h-[50vh] flex-1 items-center justify-center">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <CardTitle>No agents found</CardTitle>
-          <CardDescription>
+      <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
+        <div className="flex size-16 items-center justify-center rounded-2xl border border-border/60 bg-card/80 shadow-sm">
+          <RocketLaunchIcon aria-hidden="true" className="size-8 text-muted-foreground/60" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold">No agents yet</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Create a cloud agent or adjust your search to populate the board.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={onCreate}>
-            <PlusIcon data-icon="inline-start" />
-            New agent
-          </Button>
-        </CardContent>
-      </Card>
+          </p>
+        </div>
+        <Button onClick={onCreate} size="sm">
+          <PlusIcon data-icon="inline-start" />
+          New agent
+        </Button>
+      </div>
     </div>
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const normalized = status.toLowerCase()
-  const variant =
-    normalized.includes("fail") || normalized.includes("error")
-      ? "destructive"
-      : normalized.includes("complete") || normalized.includes("done")
-        ? "secondary"
-        : normalized === "no_status"
-          ? "ghost"
-        : "outline"
+type StatusMeta = {
+  dotClass: string
+  textClass: string
+  bgClass: string
+  icon: IconComponent
+  pulse: boolean
+}
 
-  return <Badge variant={variant}>{formatStatusLabel(status)}</Badge>
+function getStatusMeta(status: string): StatusMeta {
+  const n = status.toLowerCase()
+
+  if (n.includes("fail") || n.includes("error") || n.includes("cancel")) {
+    return {
+      dotClass: "bg-red-400",
+      textClass: "text-red-400",
+      bgClass: "bg-red-500/12",
+      icon: XCircleIcon,
+      pulse: false,
+    }
+  }
+  if (n.includes("complete") || n.includes("done") || n.includes("success") || n.includes("finish")) {
+    return {
+      dotClass: "bg-emerald-400",
+      textClass: "text-emerald-400",
+      bgClass: "bg-emerald-500/12",
+      icon: CheckCircleIcon,
+      pulse: false,
+    }
+  }
+  if (n.includes("run") || n.includes("progress") || n.includes("active") || n.includes("work")) {
+    return {
+      dotClass: "bg-blue-400",
+      textClass: "text-blue-400",
+      bgClass: "bg-blue-500/12",
+      icon: CircleNotchIcon,
+      pulse: true,
+    }
+  }
+  if (n.includes("queue") || n.includes("wait") || n.includes("pending") || n.includes("schedul")) {
+    return {
+      dotClass: "bg-amber-400",
+      textClass: "text-amber-400",
+      bgClass: "bg-amber-500/12",
+      icon: HourglassIcon,
+      pulse: false,
+    }
+  }
+
+  return {
+    dotClass: "bg-muted-foreground/40",
+    textClass: "text-muted-foreground",
+    bgClass: "bg-muted/40",
+    icon: CircleDashedIcon,
+    pulse: false,
+  }
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const meta = getStatusMeta(status)
+  const label = formatStatusLabel(status)
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap",
+        meta.bgClass,
+        meta.textClass
+      )}
+    >
+      <span
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          meta.dotClass,
+          meta.pulse && "animate-pulse"
+        )}
+      />
+      {label}
+    </span>
+  )
 }
 
 function groupAgents(agents: AgentCard[], groupBy: GroupBy) {
