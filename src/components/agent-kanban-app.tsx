@@ -363,7 +363,11 @@ export function AgentKanbanApp() {
         )}
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-w-0 flex-1 flex-col outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
+      >
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-sm">
           <div className="relative flex min-w-48 flex-1 items-center">
             <MagnifyingGlassIcon
