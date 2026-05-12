@@ -65,4 +65,4 @@ so refresh the board if a preview stops loading.
 - If repositories are empty, check that your Cursor/GitHub integration has access
   to the repositories you expect to use.
 - If a created agent does not show immediately, click **Refresh**. Cloud Agent
-  status and artifact data can lag briefly behind creation.# agent-kanban
+  status and artifact data can lag briefly behind creation.
