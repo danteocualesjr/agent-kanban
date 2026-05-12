@@ -378,6 +378,7 @@ export function AgentKanbanApp() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search agents and repos..."
+              aria-label="Search agents and repositories"
               className="h-8 border-0 bg-muted/60 pl-8"
             />
           </div>
