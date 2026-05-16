@@ -84,6 +84,7 @@ type ApiError = {
 const sessionStorageKey = "agent-kanban-session-id"
 const preferencesStorageKey = "agent-kanban-preferences"
 const defaultGroupBy: GroupBy = "status"
+const autoRefreshIntervalMs = 20_000
 
 type StoredPreferences = {
   groupBy?: GroupBy
@@ -214,7 +215,7 @@ export function AgentKanbanApp() {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = React.useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
-  const searchInputRef = React.useRef<HTMLInputElement>(null)
+  const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null)
 
   const loadBoard = React.useCallback(async (sessionId: string) => {
     setIsLoading(true)
@@ -231,10 +232,24 @@ export function AgentKanbanApp() {
       setAgents(agentResult.agents)
       setRepositories(repositoryResult.repositories)
       setModels(modelResult.models)
+      setLastSyncedAt(Date.now())
     } catch (loadError) {
       setError(errorMessage(loadError, "Failed to load cloud agents."))
     } finally {
       setIsLoading(false)
+    }
+  }, [])
+
+  // Silent background refresh used by polling and visibility changes.
+  // Doesn't toggle isLoading or surface errors so the user can keep working
+  // with whatever data is already on the board.
+  const refreshAgentsQuietly = React.useCallback(async (sessionId: string) => {
+    try {
+      const result = await apiFetch<AgentListResponse>("/api/agents", sessionId)
+      setAgents(result.agents)
+      setLastSyncedAt(Date.now())
+    } catch {
+      // Intentionally swallowed; manual refresh will surface errors loudly.
     }
   }, [])
 
@@ -270,6 +285,42 @@ export function AgentKanbanApp() {
     }
   }, [loadBoard])
 
+  React.useEffect(() => {
+    if (status !== "ready" || !session) {
+      return
+    }
+
+    const sessionId = session.id
+
+    function isTabVisible() {
+      return (
+        typeof document === "undefined" ||
+        document.visibilityState === "visible"
+      )
+    }
+
+    function tick() {
+      if (!isTabVisible()) {
+        return
+      }
+      void refreshAgentsQuietly(sessionId)
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        tick()
+      }
+    }
+
+    const intervalId = window.setInterval(tick, autoRefreshIntervalMs)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [status, session, refreshAgentsQuietly])
+
   async function handleSessionCreated(nextSession: PublicSession) {
     window.localStorage.setItem(sessionStorageKey, nextSession.id)
     setSession(nextSession)
@@ -292,9 +343,7 @@ export function AgentKanbanApp() {
     setAgents([])
     setRepositories([])
     setModels([])
-    setGroupBy(defaultGroupBy)
-    setSidebarFilter("all")
-    setIsSidebarCollapsed(false)
+    setLastSyncedAt(null)
     setStatus("onboarding")
   }
 
@@ -611,7 +660,18 @@ export function AgentKanbanApp() {
                 Syncing
               </span>
             ) : (
-              <Badge variant="outline">Live</Badge>
+              <Badge
+                variant="outline"
+                title={
+                  lastSyncedAt
+                    ? `Last synced ${formatAbsoluteTime(lastSyncedAt)} · auto-refresh every ${
+                        autoRefreshIntervalMs / 1000
+                      }s`
+                    : `Auto-refresh every ${autoRefreshIntervalMs / 1000}s`
+                }
+              >
+                Live
+              </Badge>
             )}
           </div>
           <div className="shrink-0 xl:hidden">
@@ -1745,6 +1805,18 @@ function dateBucket(value: string | undefined) {
     return "This month"
   }
   return "Older"
+}
+
+function formatAbsoluteTime(value: number | string) {
+  const date = typeof value === "number" ? new Date(value) : new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return "unknown time"
+  }
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  })
 }
 
 function formatRelativeTime(value: string | undefined) {
