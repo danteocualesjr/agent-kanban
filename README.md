@@ -41,6 +41,20 @@ pnpm build
 pnpm start
 ```
 
+## Keyboard Shortcuts
+
+| Key | Action |
+| --- | --- |
+| `/` | Focus the search field |
+| `n` | Open the create-agent dialog |
+| `r` | Refresh the board |
+| `c` | Toggle the sidebar |
+| `?` | Show the shortcuts cheatsheet |
+| `Esc` | Close any open dialog or clear the search field |
+
+Shortcuts are ignored while you are typing in a text field or when a modifier
+key (`Cmd`/`Ctrl`/`Alt`) is held down.
+
 ## How It Works
 
 - `/api/session` validates a Cursor API key, creates an app session, and manages
