@@ -82,8 +82,77 @@ type ApiError = {
 }
 
 const sessionStorageKey = "agent-kanban-session-id"
+const preferencesStorageKey = "agent-kanban-preferences"
 const defaultGroupBy: GroupBy = "status"
 const autoRefreshIntervalMs = 20_000
+
+type StoredPreferences = {
+  groupBy?: GroupBy
+  sidebarFilter?: SidebarFilter
+  isSidebarCollapsed?: boolean
+}
+
+const groupByValues: ReadonlySet<string> = new Set<GroupBy>([
+  "status",
+  "repository",
+  "createdAt",
+])
+const sidebarFilterValues: ReadonlySet<string> = new Set<SidebarFilter>([
+  "all",
+  "withArtifacts",
+  "prAgents",
+  "recentlyActive",
+])
+
+function readStoredPreferences(): StoredPreferences {
+  if (typeof window === "undefined") {
+    return {}
+  }
+
+  try {
+    const raw = window.localStorage.getItem(preferencesStorageKey)
+    if (!raw) {
+      return {}
+    }
+
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== "object") {
+      return {}
+    }
+
+    const candidate = parsed as Record<string, unknown>
+    const next: StoredPreferences = {}
+
+    if (typeof candidate.groupBy === "string" && groupByValues.has(candidate.groupBy)) {
+      next.groupBy = candidate.groupBy as GroupBy
+    }
+    if (
+      typeof candidate.sidebarFilter === "string" &&
+      sidebarFilterValues.has(candidate.sidebarFilter)
+    ) {
+      next.sidebarFilter = candidate.sidebarFilter as SidebarFilter
+    }
+    if (typeof candidate.isSidebarCollapsed === "boolean") {
+      next.isSidebarCollapsed = candidate.isSidebarCollapsed
+    }
+
+    return next
+  } catch {
+    return {}
+  }
+}
+
+function writeStoredPreferences(prefs: StoredPreferences) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(preferencesStorageKey, JSON.stringify(prefs))
+  } catch {
+    // Storage may be unavailable (private mode, quota); ignore.
+  }
+}
 
 const groupOptions: GroupOption[] = [
   { id: "status", label: "Status", icon: CirclesFourIcon },
@@ -134,12 +203,17 @@ export function AgentKanbanApp() {
   const [agents, setAgents] = React.useState<AgentCard[]>([])
   const [repositories, setRepositories] = React.useState<RepositoryOption[]>([])
   const [models, setModels] = React.useState<ModelOption[]>([])
-  const [groupBy, setGroupBy] = React.useState<GroupBy>(defaultGroupBy)
-  const [sidebarFilter, setSidebarFilter] = React.useState<SidebarFilter>("all")
+  const [groupBy, setGroupBy] = React.useState<GroupBy>(
+    () => readStoredPreferences().groupBy ?? defaultGroupBy
+  )
+  const [sidebarFilter, setSidebarFilter] = React.useState<SidebarFilter>(
+    () => readStoredPreferences().sidebarFilter ?? "all"
+  )
   const [query, setQuery] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
+  const [isShortcutsOpen, setIsShortcutsOpen] = React.useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null)
 
@@ -254,15 +328,16 @@ export function AgentKanbanApp() {
     await loadBoard(nextSession.id)
   }
 
-  async function handleRefresh() {
+  const handleRefresh = React.useCallback(async () => {
     if (!session) {
       return
     }
     await loadBoard(session.id)
-  }
+  }, [session, loadBoard])
 
   async function handleForgetKey() {
     window.localStorage.removeItem(sessionStorageKey)
+    window.localStorage.removeItem(preferencesStorageKey)
     await fetch("/api/session", { method: "DELETE" })
     setSession(null)
     setAgents([])
@@ -278,6 +353,102 @@ export function AgentKanbanApp() {
       await loadBoard(session.id)
     }
   }
+
+  React.useEffect(() => {
+    if (status !== "ready") {
+      return
+    }
+
+    function isEditableTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) {
+        return false
+      }
+      const tagName = target.tagName
+      if (
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+      ) {
+        return true
+      }
+      return target.isContentEditable
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) {
+        return
+      }
+
+      if (event.key === "Escape") {
+        if (isCreateOpen) {
+          setIsCreateOpen(false)
+          event.preventDefault()
+          return
+        }
+        if (isShortcutsOpen) {
+          setIsShortcutsOpen(false)
+          event.preventDefault()
+          return
+        }
+        if (
+          document.activeElement === searchInputRef.current &&
+          query.length > 0
+        ) {
+          setQuery("")
+          event.preventDefault()
+          return
+        }
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur()
+        }
+        return
+      }
+
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+      if (isEditableTarget(event.target)) {
+        return
+      }
+      if (isCreateOpen) {
+        return
+      }
+
+      switch (event.key) {
+        case "/":
+          event.preventDefault()
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+          break
+        case "n":
+        case "N":
+          event.preventDefault()
+          setIsCreateOpen(true)
+          break
+        case "r":
+        case "R":
+          event.preventDefault()
+          void handleRefresh()
+          break
+        case "c":
+        case "C":
+          event.preventDefault()
+          setIsSidebarCollapsed((value) => !value)
+          break
+        case "?":
+          event.preventDefault()
+          setIsShortcutsOpen((value) => !value)
+          break
+        default:
+          break
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [status, isCreateOpen, isShortcutsOpen, query, handleRefresh])
 
   const selectableGroupOptions = React.useMemo(
     () => getSelectableGroupOptions(agents),
@@ -428,12 +599,19 @@ export function AgentKanbanApp() {
               className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground"
             />
             <Input
+              ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search agents and repos..."
               aria-label="Search agents and repositories"
-              className="h-8 border-0 bg-muted/60 pl-8"
+              className="h-8 border-0 bg-muted/60 pl-8 pr-10"
             />
+            <Kbd
+              className="pointer-events-none absolute right-2 hidden md:inline-flex"
+              aria-hidden="true"
+            >
+              /
+            </Kbd>
           </div>
 
           <Select
@@ -510,6 +688,16 @@ export function AgentKanbanApp() {
             <PlusIcon data-icon="inline-start" />
             New agent
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setIsShortcutsOpen(true)}
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+            className="hidden md:inline-flex"
+          >
+            <Kbd aria-hidden="true">?</Kbd>
+          </Button>
         </header>
 
         {error ? (
@@ -549,6 +737,90 @@ export function AgentKanbanApp() {
           onCreated={handleAgentCreated}
         />
       ) : null}
+
+      {isShortcutsOpen ? (
+        <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} />
+      ) : null}
+    </div>
+  )
+}
+
+function Kbd({
+  children,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLElement>) {
+  return (
+    <kbd
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded border border-border/60 bg-muted/60 px-1.5 font-mono text-[0.65rem] font-medium text-muted-foreground leading-none",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </kbd>
+  )
+}
+
+const shortcutItems: { keys: string[]; description: string }[] = [
+  { keys: ["/"], description: "Focus search" },
+  { keys: ["n"], description: "New agent" },
+  { keys: ["r"], description: "Refresh board" },
+  { keys: ["c"], description: "Toggle sidebar" },
+  { keys: ["?"], description: "Show this list" },
+  { keys: ["Esc"], description: "Close dialog or clear search" },
+]
+
+function ShortcutsDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-title"
+        className="w-full max-w-sm shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <CardHeader className="border-b">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle id="shortcuts-title">Keyboard shortcuts</CardTitle>
+              <CardDescription>
+                Move around the board without leaving the keyboard.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <XIcon />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ul className="flex flex-col gap-2 text-sm">
+            {shortcutItems.map((item) => (
+              <li
+                key={item.description}
+                className="flex items-center justify-between gap-3"
+              >
+                <span className="text-muted-foreground">{item.description}</span>
+                <span className="flex shrink-0 items-center gap-1">
+                  {item.keys.map((key) => (
+                    <Kbd key={key}>{key}</Kbd>
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   )
 }
