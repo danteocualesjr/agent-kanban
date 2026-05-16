@@ -58,6 +58,12 @@ Repository listing is rate-limited by the Cloud Agents API and is cached briefly
 in memory. Artifact previews are fetched through authenticated local API routes,
 so refresh the board if a preview stops loading.
 
+The board polls `/api/agents` every 20 seconds while the tab is in the
+foreground and refreshes immediately when the tab regains focus, so card
+statuses stay in sync without manual refreshes. Polling pauses while the tab is
+hidden to avoid spending API quota on a board nobody is watching. Hover the
+"Live" pill in the header to see the last sync timestamp.
+
 ## Troubleshooting
 
 - If onboarding fails, confirm the key starts with `crsr_` and was created from
