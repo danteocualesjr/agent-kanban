@@ -82,7 +82,76 @@ type ApiError = {
 }
 
 const sessionStorageKey = "agent-kanban-session-id"
+const preferencesStorageKey = "agent-kanban-preferences"
 const defaultGroupBy: GroupBy = "status"
+
+type StoredPreferences = {
+  groupBy?: GroupBy
+  sidebarFilter?: SidebarFilter
+  isSidebarCollapsed?: boolean
+}
+
+const groupByValues: ReadonlySet<string> = new Set<GroupBy>([
+  "status",
+  "repository",
+  "createdAt",
+])
+const sidebarFilterValues: ReadonlySet<string> = new Set<SidebarFilter>([
+  "all",
+  "withArtifacts",
+  "prAgents",
+  "recentlyActive",
+])
+
+function readStoredPreferences(): StoredPreferences {
+  if (typeof window === "undefined") {
+    return {}
+  }
+
+  try {
+    const raw = window.localStorage.getItem(preferencesStorageKey)
+    if (!raw) {
+      return {}
+    }
+
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== "object") {
+      return {}
+    }
+
+    const candidate = parsed as Record<string, unknown>
+    const next: StoredPreferences = {}
+
+    if (typeof candidate.groupBy === "string" && groupByValues.has(candidate.groupBy)) {
+      next.groupBy = candidate.groupBy as GroupBy
+    }
+    if (
+      typeof candidate.sidebarFilter === "string" &&
+      sidebarFilterValues.has(candidate.sidebarFilter)
+    ) {
+      next.sidebarFilter = candidate.sidebarFilter as SidebarFilter
+    }
+    if (typeof candidate.isSidebarCollapsed === "boolean") {
+      next.isSidebarCollapsed = candidate.isSidebarCollapsed
+    }
+
+    return next
+  } catch {
+    return {}
+  }
+}
+
+function writeStoredPreferences(prefs: StoredPreferences) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(preferencesStorageKey, JSON.stringify(prefs))
+  } catch {
+    // Storage may be unavailable (private mode, quota); ignore.
+  }
+}
 
 const groupOptions: GroupOption[] = [
   { id: "status", label: "Status", icon: CirclesFourIcon },
@@ -133,13 +202,23 @@ export function AgentKanbanApp() {
   const [agents, setAgents] = React.useState<AgentCard[]>([])
   const [repositories, setRepositories] = React.useState<RepositoryOption[]>([])
   const [models, setModels] = React.useState<ModelOption[]>([])
-  const [groupBy, setGroupBy] = React.useState<GroupBy>(defaultGroupBy)
-  const [sidebarFilter, setSidebarFilter] = React.useState<SidebarFilter>("all")
+  const [groupBy, setGroupBy] = React.useState<GroupBy>(
+    () => readStoredPreferences().groupBy ?? defaultGroupBy
+  )
+  const [sidebarFilter, setSidebarFilter] = React.useState<SidebarFilter>(
+    () => readStoredPreferences().sidebarFilter ?? "all"
+  )
   const [query, setQuery] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState<boolean>(
+    () => readStoredPreferences().isSidebarCollapsed ?? false
+  )
+
+  React.useEffect(() => {
+    writeStoredPreferences({ groupBy, sidebarFilter, isSidebarCollapsed })
+  }, [groupBy, sidebarFilter, isSidebarCollapsed])
 
   const loadBoard = React.useCallback(async (sessionId: string) => {
     setIsLoading(true)
@@ -211,11 +290,15 @@ export function AgentKanbanApp() {
 
   async function handleForgetKey() {
     window.localStorage.removeItem(sessionStorageKey)
+    window.localStorage.removeItem(preferencesStorageKey)
     await fetch("/api/session", { method: "DELETE" })
     setSession(null)
     setAgents([])
     setRepositories([])
     setModels([])
+    setGroupBy(defaultGroupBy)
+    setSidebarFilter("all")
+    setIsSidebarCollapsed(false)
     setStatus("onboarding")
   }
 
