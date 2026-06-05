@@ -214,7 +214,9 @@ export function AgentKanbanApp() {
   const [error, setError] = React.useState<string | null>(null)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = React.useState(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(
+    () => readStoredPreferences().isSidebarCollapsed ?? false
+  )
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null)
   const searchInputRef = React.useRef<HTMLInputElement>(null)
 
