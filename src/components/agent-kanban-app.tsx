@@ -216,6 +216,7 @@ export function AgentKanbanApp() {
   const [isShortcutsOpen, setIsShortcutsOpen] = React.useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null)
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
 
   const loadBoard = React.useCallback(async (sessionId: string) => {
     setIsLoading(true)
