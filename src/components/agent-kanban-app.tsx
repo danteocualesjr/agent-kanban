@@ -1476,6 +1476,7 @@ function CreateAgentDialog({
   const hasModels = models.length > 0
   const selectedModelId = modelId || models[0]?.id || ""
   const selectedModel = models.find((model) => model.id === selectedModelId)
+  const promptWordCount = prompt.trim() ? prompt.trim().split(/\s+/).length : 0
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1645,6 +1646,10 @@ function CreateAgentDialog({
                 className="min-h-32"
                 required
               />
+              <span className="text-xs font-normal text-muted-foreground">
+                {promptWordCount} word{promptWordCount === 1 ? "" : "s"} ·{" "}
+                {prompt.length} character{prompt.length === 1 ? "" : "s"}
+              </span>
             </label>
 
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
