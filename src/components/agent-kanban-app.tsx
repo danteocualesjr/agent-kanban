@@ -623,12 +623,27 @@ export function AgentKanbanApp() {
               aria-label="Search agents and repositories"
               className="h-8 border-0 bg-muted/60 pl-8 pr-10"
             />
-            <Kbd
-              className="pointer-events-none absolute right-2 hidden md:inline-flex"
-              aria-hidden="true"
-            >
-              /
-            </Kbd>
+            {query ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  setQuery("")
+                  searchInputRef.current?.focus()
+                }}
+                aria-label="Clear search"
+                className="absolute right-0.5 size-7"
+              >
+                <XIcon aria-hidden="true" className="size-3.5" />
+              </Button>
+            ) : (
+              <Kbd
+                className="pointer-events-none absolute right-2 hidden md:inline-flex"
+                aria-hidden="true"
+              >
+                /
+              </Kbd>
+            )}
           </div>
 
           <Select
