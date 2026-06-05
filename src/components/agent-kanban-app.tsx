@@ -1475,6 +1475,7 @@ function CreateAgentDialog({
   )
   const hasModels = models.length > 0
   const selectedModelId = modelId || models[0]?.id || ""
+  const selectedModel = models.find((model) => model.id === selectedModelId)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1612,6 +1613,11 @@ function CreateAgentDialog({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  {selectedModel?.description ? (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {selectedModel.description}
+                    </span>
+                  ) : null}
                 </label>
               ) : null}
             </div>
