@@ -1683,7 +1683,14 @@ function CreateAgentDialog({
                 type="submit"
                 disabled={!prompt.trim() || !selectedRepositoryId || isSubmitting}
               >
-                {isSubmitting ? "Creating..." : "Create agent"}
+                {isSubmitting ? (
+                  <>
+                    <CircleNotchIcon data-icon="inline-start" className="animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create agent"
+                )}
               </Button>
             </div>
           </form>
