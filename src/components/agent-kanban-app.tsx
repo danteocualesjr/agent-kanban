@@ -1155,6 +1155,7 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
   const previewArtifact = getPreviewArtifact(agent.artifacts)
   const hasCardContent = Boolean(agent.latestMessage || previewArtifact)
   const statusMeta = getStatusMeta(agent.status)
+  const artifactCount = agent.artifacts.length
 
   return (
     <Card
@@ -1168,7 +1169,15 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
       <CardHeader className="gap-2 pl-4">
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="line-clamp-2">{agent.title}</CardTitle>
-          <StatusBadge status={agent.status} />
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <StatusBadge status={agent.status} />
+            {artifactCount > 0 ? (
+              <Badge variant="outline" className="gap-1 text-[0.65rem]">
+                <FileIcon aria-hidden="true" className="size-3" />
+                {artifactCount}
+              </Badge>
+            ) : null}
+          </div>
         </div>
         <CardDescription className="flex items-center gap-1.5 truncate text-xs">
           <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
