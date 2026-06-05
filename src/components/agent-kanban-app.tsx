@@ -227,6 +227,8 @@ export function AgentKanbanApp() {
     () => readStoredPreferences().isSidebarCollapsed ?? false
   )
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null)
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false)
   const searchInputRef = React.useRef<HTMLInputElement>(null)
 
   const loadBoard = React.useCallback(
@@ -249,6 +251,7 @@ export function AgentKanbanApp() {
           apiFetch<{ models: ModelOption[] }>("/api/models", sessionId),
         ])
         setAgents(agentResult.agents)
+        setNextCursor(agentResult.nextCursor ?? null)
         setRepositories(repositoryResult.repositories)
         setModels(modelResult.models)
         setLastSyncedAt(Date.now())
@@ -275,6 +278,7 @@ export function AgentKanbanApp() {
           : "/api/agents"
         const result = await apiFetch<AgentListResponse>(agentsPath, sessionId)
         setAgents(result.agents)
+        setNextCursor(result.nextCursor ?? null)
         setLastSyncedAt(Date.now())
       } catch {
         // Intentionally swallowed; manual refresh will surface errors loudly.
@@ -365,6 +369,32 @@ export function AgentKanbanApp() {
     await loadBoard(session.id, { includeArchived })
   }, [session, loadBoard, includeArchived])
 
+  const handleLoadMore = React.useCallback(async () => {
+    if (!session || !nextCursor) {
+      return
+    }
+
+    setIsLoadingMore(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams({ cursor: nextCursor })
+      if (includeArchived) {
+        params.set("includeArchived", "true")
+      }
+      const result = await apiFetch<AgentListResponse>(
+        `/api/agents?${params.toString()}`,
+        session.id
+      )
+      setAgents((current) => mergeAgentLists(current, result.agents))
+      setNextCursor(result.nextCursor ?? null)
+      setLastSyncedAt(Date.now())
+    } catch (loadError) {
+      setError(errorMessage(loadError, "Failed to load more cloud agents."))
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [session, nextCursor, includeArchived])
+
   async function handleForgetKey() {
     window.localStorage.removeItem(sessionStorageKey)
     window.localStorage.removeItem(preferencesStorageKey)
@@ -374,6 +404,7 @@ export function AgentKanbanApp() {
     setRepositories([])
     setModels([])
     setLastSyncedAt(null)
+    setNextCursor(null)
     setStatus("onboarding")
   }
 
@@ -808,14 +839,22 @@ export function AgentKanbanApp() {
           <ScrollArea className="min-h-0 flex-1">
             <div className="flex min-h-full gap-3 p-4">
               {groups.length > 0 ? (
-                groups.map((group) => (
-                  <BoardColumn
-                    key={group.id}
-                    title={group.title}
-                    icon={selectedGroupOption?.icon ?? CirclesFourIcon}
-                    agents={group.agents}
-                  />
-                ))
+                <>
+                  {groups.map((group) => (
+                    <BoardColumn
+                      key={group.id}
+                      title={group.title}
+                      icon={selectedGroupOption?.icon ?? CirclesFourIcon}
+                      agents={group.agents}
+                    />
+                  ))}
+                  {nextCursor ? (
+                    <LoadMoreColumn
+                      isLoading={isLoadingMore}
+                      onLoadMore={handleLoadMore}
+                    />
+                  ) : null}
+                </>
               ) : showBoardLoading ? (
                 <BoardLoadingSkeleton />
               ) : agents.length > 0 ? (
@@ -1102,6 +1141,38 @@ function BoardColumn({
           <AgentCardPreview key={agent.id} agent={agent} />
         ))}
       </div>
+    </section>
+  )
+}
+
+function LoadMoreColumn({
+  isLoading,
+  onLoadMore,
+}: {
+  isLoading: boolean
+  onLoadMore: () => void
+}) {
+  return (
+    <section className="flex w-64 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 p-4 text-center">
+      <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-background/70 text-muted-foreground">
+        <ArrowClockwiseIcon
+          aria-hidden="true"
+          className={cn("size-5", isLoading && "animate-spin text-primary")}
+        />
+      </div>
+      <h2 className="text-sm font-semibold">More agents available</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Load the next page without losing your current search or grouping.
+      </p>
+      <Button
+        className="mt-4"
+        size="sm"
+        variant="outline"
+        onClick={onLoadMore}
+        disabled={isLoading}
+      >
+        {isLoading ? "Loading..." : "Load more"}
+      </Button>
     </section>
   )
 }
@@ -1855,6 +1926,16 @@ function filterAgentsBySidebar(agents: AgentCard[], filter: SidebarFilter) {
   }
 
   return agents
+}
+
+function mergeAgentLists(current: AgentCard[], incoming: AgentCard[]) {
+  const byId = new Map(current.map((agent) => [agent.id, agent]))
+
+  for (const agent of incoming) {
+    byId.set(agent.id, agent)
+  }
+
+  return Array.from(byId.values())
 }
 
 function isRecentlyActive(value: string | undefined) {
