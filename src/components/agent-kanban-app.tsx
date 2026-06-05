@@ -1465,11 +1465,14 @@ function CreateAgentDialog({
   const [prompt, setPrompt] = React.useState("")
   const [repositoryId, setRepositoryId] = React.useState(repositories[0]?.id ?? "")
   const [modelId, setModelId] = React.useState(models[0]?.id ?? "")
-  const [branch, setBranch] = React.useState("")
+  const [branch, setBranch] = React.useState(repositories[0]?.defaultBranch ?? "")
   const [autoCreatePR, setAutoCreatePR] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const selectedRepositoryId = repositoryId || repositories[0]?.id || ""
+  const selectedRepository = repositories.find(
+    (repository) => repository.id === selectedRepositoryId
+  )
   const hasModels = models.length > 0
   const selectedModelId = modelId || models[0]?.id || ""
 
@@ -1554,7 +1557,15 @@ function CreateAgentDialog({
                   value={selectedRepositoryId}
                   onValueChange={(value) => {
                     if (value) {
+                      const nextRepository = repositories.find(
+                        (repository) => repository.id === value
+                      )
                       setRepositoryId(value)
+                      if (nextRepository?.defaultBranch) {
+                        setBranch((current) =>
+                          current.trim() ? current : nextRepository.defaultBranch ?? ""
+                        )
+                      }
                     }
                   }}
                 >
@@ -1610,8 +1621,13 @@ function CreateAgentDialog({
               <Input
                 value={branch}
                 onChange={(event) => setBranch(event.target.value)}
-                placeholder="main"
+                placeholder={selectedRepository?.defaultBranch ?? "main"}
               />
+              {selectedRepository?.defaultBranch ? (
+                <span className="text-xs font-normal text-muted-foreground">
+                  Default branch: {selectedRepository.defaultBranch}
+                </span>
+              ) : null}
             </label>
 
             <label className="flex flex-col gap-2 text-sm font-medium">
