@@ -1185,6 +1185,12 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
             <span className="truncate">{agent.repository}</span>
           )}
         </CardDescription>
+        {agent.branch ? (
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            <span className="truncate">{agent.branch}</span>
+          </div>
+        ) : null}
       </CardHeader>
       {hasCardContent ? (
         <CardContent className="flex flex-col gap-3 pl-4">
