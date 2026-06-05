@@ -58,7 +58,7 @@ import type {
 } from "@/lib/agents/types"
 import { cn } from "@/lib/utils"
 
-type GroupBy = "status" | "repository" | "createdAt"
+type GroupBy = "status" | "repository" | "branch" | "createdAt"
 type IconComponent = React.ElementType
 
 type GroupOption = {
@@ -95,6 +95,7 @@ type StoredPreferences = {
 const groupByValues: ReadonlySet<string> = new Set<GroupBy>([
   "status",
   "repository",
+  "branch",
   "createdAt",
 ])
 const sidebarFilterValues: ReadonlySet<string> = new Set<SidebarFilter>([
@@ -157,6 +158,7 @@ function writeStoredPreferences(prefs: StoredPreferences) {
 const groupOptions: GroupOption[] = [
   { id: "status", label: "Status", icon: CirclesFourIcon },
   { id: "repository", label: "Repository", icon: KanbanIcon },
+  { id: "branch", label: "Branch", icon: GitBranchIcon, requiresData: "branch" },
   { id: "createdAt", label: "Created date", icon: ClockIcon },
 ]
 
