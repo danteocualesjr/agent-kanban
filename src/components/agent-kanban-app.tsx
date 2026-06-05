@@ -721,10 +721,17 @@ export function AgentKanbanApp() {
               </Badge>
             )}
           </div>
-          <div className="shrink-0 xl:hidden">
+          <div className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground sm:flex xl:hidden">
             {isLoading ? (
-              <CircleNotchIcon aria-hidden="true" className="size-4 animate-spin text-primary" />
-            ) : null}
+              <>
+                <CircleNotchIcon aria-hidden="true" className="size-4 animate-spin text-primary" />
+                Syncing
+              </>
+            ) : lastSyncedAt ? (
+              <>Synced {formatRelativeTimestamp(lastSyncedAt)}</>
+            ) : (
+              "Live"
+            )}
           </div>
 
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
@@ -1945,6 +1952,22 @@ function formatAbsoluteTime(value: number | string) {
     minute: "2-digit",
     second: "2-digit",
   })
+}
+
+function formatRelativeTimestamp(value: number) {
+  const diffMs = Date.now() - value
+  const minutes = Math.max(1, Math.floor(diffMs / 60_000))
+  if (minutes < 60) {
+    return `${minutes}m ago`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return `${hours}h ago`
+  }
+
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 }
 
 function formatRelativeTime(value: string | undefined) {
