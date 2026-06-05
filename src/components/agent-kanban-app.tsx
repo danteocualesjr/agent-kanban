@@ -223,6 +223,7 @@ export function AgentKanbanApp() {
   const [error, setError] = React.useState<string | null>(null)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = React.useState(false)
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = React.useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(
     () => readStoredPreferences().isSidebarCollapsed ?? false
   )
@@ -472,6 +473,11 @@ export function AgentKanbanApp() {
           event.preventDefault()
           return
         }
+        if (isMobileFiltersOpen) {
+          setIsMobileFiltersOpen(false)
+          event.preventDefault()
+          return
+        }
         if (
           document.activeElement === searchInputRef.current &&
           query.length > 0
@@ -530,7 +536,14 @@ export function AgentKanbanApp() {
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [status, isCreateOpen, isShortcutsOpen, query, handleRefresh])
+  }, [
+    status,
+    isCreateOpen,
+    isShortcutsOpen,
+    isMobileFiltersOpen,
+    query,
+    handleRefresh,
+  ])
 
   const selectableGroupOptions = React.useMemo(
     () => getSelectableGroupOptions(agents),
@@ -677,6 +690,15 @@ export function AgentKanbanApp() {
         className="flex min-w-0 flex-1 flex-col outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
       >
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-sm">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setIsMobileFiltersOpen(true)}
+            aria-label="Open filters"
+            className="shrink-0 lg:hidden"
+          >
+            <CirclesFourIcon aria-hidden="true" />
+          </Button>
           <div className="relative flex min-w-48 flex-1 items-center">
             <MagnifyingGlassIcon
               aria-hidden="true"
@@ -888,6 +910,18 @@ export function AgentKanbanApp() {
       {isShortcutsOpen ? (
         <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} />
       ) : null}
+
+      {isMobileFiltersOpen ? (
+        <MobileFiltersDialog
+          items={sidebarItems}
+          activeFilter={sidebarFilter}
+          onClose={() => setIsMobileFiltersOpen(false)}
+          onSelect={(nextFilter) => {
+            setSidebarFilter(nextFilter)
+            setIsMobileFiltersOpen(false)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -966,6 +1000,69 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
               </li>
             ))}
           </ul>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function MobileFiltersDialog({
+  items,
+  activeFilter,
+  onSelect,
+  onClose,
+}: {
+  items: Array<{
+    id: SidebarFilter
+    label: string
+    icon: IconComponent
+    count: number
+  }>
+  activeFilter: SidebarFilter
+  onSelect: (filter: SidebarFilter) => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:justify-center"
+      onClick={onClose}
+    >
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-filters-title"
+        className="w-full max-w-sm shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <CardHeader className="border-b">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle id="mobile-filters-title">Filters</CardTitle>
+              <CardDescription>Choose which agents are visible.</CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onClose}
+              aria-label="Close filters"
+            >
+              <XIcon />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <nav className="flex flex-col gap-1" aria-label="Mobile agent filters">
+            {items.map((item) => (
+              <SidebarItem
+                key={item.id}
+                active={activeFilter === item.id}
+                count={item.count}
+                icon={item.icon}
+                label={item.label}
+                onSelect={() => onSelect(item.id)}
+              />
+            ))}
+          </nav>
         </CardContent>
       </Card>
     </div>
