@@ -494,6 +494,7 @@ export function AgentKanbanApp() {
   const SelectedGroupIcon = selectedGroupOption?.icon
   const groups = groupAgents(visibleAgents, selectedGroupBy)
   const activeFilterLabel = sidebarFilters.find((item) => item.id === sidebarFilter)?.label
+  const hasActiveFilters = Boolean(query.trim()) || sidebarFilter !== "all"
   const signedInName = session.user?.name ?? "Cursor user"
   const signedInLabel = session.user?.email
     ? `${signedInName} (${session.user.email})`
@@ -686,6 +687,19 @@ export function AgentKanbanApp() {
           </Select>
 
           <div className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground xl:flex">
+            {hasActiveFilters ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setQuery("")
+                  setSidebarFilter("all")
+                }}
+                className="h-6 px-2 text-xs"
+              >
+                Reset filters
+              </Button>
+            ) : null}
             <span>{visibleAgents.length} agent{visibleAgents.length !== 1 ? "s" : ""}</span>
             {isLoading ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
