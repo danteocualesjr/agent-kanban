@@ -58,7 +58,7 @@ import type {
 } from "@/lib/agents/types"
 import { cn } from "@/lib/utils"
 
-type GroupBy = "status" | "repository" | "createdAt"
+type GroupBy = "status" | "repository" | "branch" | "createdAt"
 type IconComponent = React.ElementType
 
 type GroupOption = {
@@ -90,11 +90,13 @@ type StoredPreferences = {
   groupBy?: GroupBy
   sidebarFilter?: SidebarFilter
   isSidebarCollapsed?: boolean
+  includeArchived?: boolean
 }
 
 const groupByValues: ReadonlySet<string> = new Set<GroupBy>([
   "status",
   "repository",
+  "branch",
   "createdAt",
 ])
 const sidebarFilterValues: ReadonlySet<string> = new Set<SidebarFilter>([
@@ -135,6 +137,9 @@ function readStoredPreferences(): StoredPreferences {
     if (typeof candidate.isSidebarCollapsed === "boolean") {
       next.isSidebarCollapsed = candidate.isSidebarCollapsed
     }
+    if (typeof candidate.includeArchived === "boolean") {
+      next.includeArchived = candidate.includeArchived
+    }
 
     return next
   } catch {
@@ -157,6 +162,7 @@ function writeStoredPreferences(prefs: StoredPreferences) {
 const groupOptions: GroupOption[] = [
   { id: "status", label: "Status", icon: CirclesFourIcon },
   { id: "repository", label: "Repository", icon: KanbanIcon },
+  { id: "branch", label: "Branch", icon: GitBranchIcon, requiresData: "branch" },
   { id: "createdAt", label: "Created date", icon: ClockIcon },
 ]
 
@@ -209,49 +215,78 @@ export function AgentKanbanApp() {
   const [sidebarFilter, setSidebarFilter] = React.useState<SidebarFilter>(
     () => readStoredPreferences().sidebarFilter ?? "all"
   )
+  const [includeArchived, setIncludeArchived] = React.useState(
+    () => readStoredPreferences().includeArchived ?? false
+  )
   const [query, setQuery] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = React.useState(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = React.useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(
+    () => readStoredPreferences().isSidebarCollapsed ?? false
+  )
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null)
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false)
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
 
-  const loadBoard = React.useCallback(async (sessionId: string) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const [agentResult, repositoryResult, modelResult] = await Promise.all([
-        apiFetch<AgentListResponse>("/api/agents", sessionId),
-        apiFetch<{ repositories: RepositoryOption[] }>(
-          "/api/repositories",
-          sessionId
-        ),
-        apiFetch<{ models: ModelOption[] }>("/api/models", sessionId),
-      ])
-      setAgents(agentResult.agents)
-      setRepositories(repositoryResult.repositories)
-      setModels(modelResult.models)
-      setLastSyncedAt(Date.now())
-    } catch (loadError) {
-      setError(errorMessage(loadError, "Failed to load cloud agents."))
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+  const loadBoard = React.useCallback(
+    async (
+      sessionId: string,
+      options: { includeArchived?: boolean } = {}
+    ) => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const agentsPath = options.includeArchived
+          ? "/api/agents?includeArchived=true"
+          : "/api/agents"
+        const [agentResult, repositoryResult, modelResult] = await Promise.all([
+          apiFetch<AgentListResponse>(agentsPath, sessionId),
+          apiFetch<{ repositories: RepositoryOption[] }>(
+            "/api/repositories",
+            sessionId
+          ),
+          apiFetch<{ models: ModelOption[] }>("/api/models", sessionId),
+        ])
+        setAgents(agentResult.agents)
+        setNextCursor(agentResult.nextCursor ?? null)
+        setRepositories(repositoryResult.repositories)
+        setModels(modelResult.models)
+        setLastSyncedAt(Date.now())
+      } catch (loadError) {
+        setError(errorMessage(loadError, "Failed to load cloud agents."))
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    []
+  )
 
   // Silent background refresh used by polling and visibility changes.
   // Doesn't toggle isLoading or surface errors so the user can keep working
   // with whatever data is already on the board.
-  const refreshAgentsQuietly = React.useCallback(async (sessionId: string) => {
-    try {
-      const result = await apiFetch<AgentListResponse>("/api/agents", sessionId)
-      setAgents(result.agents)
-      setLastSyncedAt(Date.now())
-    } catch {
-      // Intentionally swallowed; manual refresh will surface errors loudly.
-    }
-  }, [])
+  const refreshAgentsQuietly = React.useCallback(
+    async (
+      sessionId: string,
+      options: { includeArchived?: boolean } = {}
+    ) => {
+      try {
+        const agentsPath = options.includeArchived
+          ? "/api/agents?includeArchived=true"
+          : "/api/agents"
+        const result = await apiFetch<AgentListResponse>(agentsPath, sessionId)
+        setAgents(result.agents)
+        setNextCursor(result.nextCursor ?? null)
+        setLastSyncedAt(Date.now())
+      } catch {
+        // Intentionally swallowed; manual refresh will surface errors loudly.
+      }
+    },
+    []
+  )
 
   React.useEffect(() => {
     let cancelled = false
@@ -270,7 +305,9 @@ export function AgentKanbanApp() {
         window.localStorage.setItem(sessionStorageKey, restored.id)
         setSession(restored)
         setStatus("ready")
-        await loadBoard(restored.id)
+        await loadBoard(restored.id, {
+          includeArchived: readStoredPreferences().includeArchived ?? false,
+        })
       } catch {
         if (!cancelled) {
           window.localStorage.removeItem(sessionStorageKey)
@@ -303,7 +340,7 @@ export function AgentKanbanApp() {
       if (!isTabVisible()) {
         return
       }
-      void refreshAgentsQuietly(sessionId)
+      void refreshAgentsQuietly(sessionId, { includeArchived })
     }
 
     function handleVisibilityChange() {
@@ -319,21 +356,47 @@ export function AgentKanbanApp() {
       window.clearInterval(intervalId)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
-  }, [status, session, refreshAgentsQuietly])
+  }, [status, session, refreshAgentsQuietly, includeArchived])
 
   async function handleSessionCreated(nextSession: PublicSession) {
     window.localStorage.setItem(sessionStorageKey, nextSession.id)
     setSession(nextSession)
     setStatus("ready")
-    await loadBoard(nextSession.id)
+    await loadBoard(nextSession.id, { includeArchived })
   }
 
   const handleRefresh = React.useCallback(async () => {
     if (!session) {
       return
     }
-    await loadBoard(session.id)
-  }, [session, loadBoard])
+    await loadBoard(session.id, { includeArchived })
+  }, [session, loadBoard, includeArchived])
+
+  const handleLoadMore = React.useCallback(async () => {
+    if (!session || !nextCursor) {
+      return
+    }
+
+    setIsLoadingMore(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams({ cursor: nextCursor })
+      if (includeArchived) {
+        params.set("includeArchived", "true")
+      }
+      const result = await apiFetch<AgentListResponse>(
+        `/api/agents?${params.toString()}`,
+        session.id
+      )
+      setAgents((current) => mergeAgentLists(current, result.agents))
+      setNextCursor(result.nextCursor ?? null)
+      setLastSyncedAt(Date.now())
+    } catch (loadError) {
+      setError(errorMessage(loadError, "Failed to load more cloud agents."))
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [session, nextCursor, includeArchived])
 
   async function handleForgetKey() {
     window.localStorage.removeItem(sessionStorageKey)
@@ -344,15 +407,29 @@ export function AgentKanbanApp() {
     setRepositories([])
     setModels([])
     setLastSyncedAt(null)
+    setNextCursor(null)
     setStatus("onboarding")
   }
 
   async function handleAgentCreated(agent: AgentCard) {
     setAgents((current) => [agent, ...current])
     if (session) {
-      await loadBoard(session.id)
+      await loadBoard(session.id, { includeArchived })
     }
   }
+
+  React.useEffect(() => {
+    if (status !== "ready") {
+      return
+    }
+
+    writeStoredPreferences({
+      groupBy,
+      sidebarFilter,
+      isSidebarCollapsed,
+      includeArchived,
+    })
+  }, [status, groupBy, sidebarFilter, isSidebarCollapsed, includeArchived])
 
   React.useEffect(() => {
     if (status !== "ready") {
@@ -387,6 +464,11 @@ export function AgentKanbanApp() {
         }
         if (isShortcutsOpen) {
           setIsShortcutsOpen(false)
+          event.preventDefault()
+          return
+        }
+        if (isMobileFiltersOpen) {
+          setIsMobileFiltersOpen(false)
           event.preventDefault()
           return
         }
@@ -448,7 +530,14 @@ export function AgentKanbanApp() {
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [status, isCreateOpen, isShortcutsOpen, query, handleRefresh])
+  }, [
+    status,
+    isCreateOpen,
+    isShortcutsOpen,
+    isMobileFiltersOpen,
+    query,
+    handleRefresh,
+  ])
 
   const selectableGroupOptions = React.useMemo(
     () => getSelectableGroupOptions(agents),
@@ -476,6 +565,8 @@ export function AgentKanbanApp() {
   const selectedGroupOption = groupOptions.find((option) => option.id === selectedGroupBy)
   const SelectedGroupIcon = selectedGroupOption?.icon
   const groups = groupAgents(visibleAgents, selectedGroupBy)
+  const activeFilterLabel = sidebarFilters.find((item) => item.id === sidebarFilter)?.label
+  const hasActiveFilters = Boolean(query.trim()) || sidebarFilter !== "all"
   const signedInName = session.user?.name ?? "Cursor user"
   const signedInLabel = session.user?.email
     ? `${signedInName} (${session.user.email})`
@@ -593,6 +684,15 @@ export function AgentKanbanApp() {
         className="flex min-w-0 flex-1 flex-col outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
       >
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-sm">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setIsMobileFiltersOpen(true)}
+            aria-label="Open filters"
+            className="shrink-0 lg:hidden"
+          >
+            <CirclesFourIcon aria-hidden="true" />
+          </Button>
           <div className="relative flex min-w-48 flex-1 items-center">
             <MagnifyingGlassIcon
               aria-hidden="true"
@@ -606,12 +706,27 @@ export function AgentKanbanApp() {
               aria-label="Search agents and repositories"
               className="h-8 border-0 bg-muted/60 pl-8 pr-10"
             />
-            <Kbd
-              className="pointer-events-none absolute right-2 hidden md:inline-flex"
-              aria-hidden="true"
-            >
-              /
-            </Kbd>
+            {query ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  setQuery("")
+                  searchInputRef.current?.focus()
+                }}
+                aria-label="Clear search"
+                className="absolute right-0.5 size-7"
+              >
+                <XIcon aria-hidden="true" className="size-3.5" />
+              </Button>
+            ) : (
+              <Kbd
+                className="pointer-events-none absolute right-2 hidden md:inline-flex"
+                aria-hidden="true"
+              >
+                /
+              </Kbd>
+            )}
           </div>
 
           <Select
@@ -652,7 +767,36 @@ export function AgentKanbanApp() {
             </SelectContent>
           </Select>
 
+          <label className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground md:flex">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={includeArchived}
+              onChange={(event) => {
+                const checked = event.target.checked
+                setIncludeArchived(checked)
+                if (session) {
+                  void loadBoard(session.id, { includeArchived: checked })
+                }
+              }}
+            />
+            Archived
+          </label>
+
           <div className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground xl:flex">
+            {hasActiveFilters ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setQuery("")
+                  setSidebarFilter("all")
+                }}
+                className="h-6 px-2 text-xs"
+              >
+                Reset filters
+              </Button>
+            ) : null}
             <span>{visibleAgents.length} agent{visibleAgents.length !== 1 ? "s" : ""}</span>
             {isLoading ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
@@ -674,10 +818,17 @@ export function AgentKanbanApp() {
               </Badge>
             )}
           </div>
-          <div className="shrink-0 xl:hidden">
+          <div className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground sm:flex xl:hidden">
             {isLoading ? (
-              <CircleNotchIcon aria-hidden="true" className="size-4 animate-spin text-primary" />
-            ) : null}
+              <>
+                <CircleNotchIcon aria-hidden="true" className="size-4 animate-spin text-primary" />
+                Syncing
+              </>
+            ) : lastSyncedAt ? (
+              <>Synced {formatRelativeTimestamp(lastSyncedAt)}</>
+            ) : (
+              "Live"
+            )}
           </div>
 
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
@@ -710,16 +861,34 @@ export function AgentKanbanApp() {
           <ScrollArea className="min-h-0 flex-1">
             <div className="flex min-h-full gap-3 p-4">
               {groups.length > 0 ? (
-                groups.map((group) => (
-                  <BoardColumn
-                    key={group.id}
-                    title={group.title}
-                    icon={selectedGroupOption?.icon ?? CirclesFourIcon}
-                    agents={group.agents}
-                  />
-                ))
+                <>
+                  {groups.map((group) => (
+                    <BoardColumn
+                      key={group.id}
+                      title={group.title}
+                      icon={selectedGroupOption?.icon ?? CirclesFourIcon}
+                      agents={group.agents}
+                    />
+                  ))}
+                  {nextCursor ? (
+                    <LoadMoreColumn
+                      isLoading={isLoadingMore}
+                      onLoadMore={handleLoadMore}
+                    />
+                  ) : null}
+                </>
               ) : showBoardLoading ? (
                 <BoardLoadingSkeleton />
+              ) : agents.length > 0 ? (
+                <FilteredEmptyBoard
+                  query={query}
+                  filterLabel={sidebarFilter !== "all" ? activeFilterLabel : undefined}
+                  onClear={() => {
+                    setQuery("")
+                    setSidebarFilter("all")
+                    searchInputRef.current?.focus()
+                  }}
+                />
               ) : (
                 <EmptyBoard onCreate={() => setIsCreateOpen(true)} />
               )}
@@ -740,6 +909,18 @@ export function AgentKanbanApp() {
 
       {isShortcutsOpen ? (
         <ShortcutsDialog onClose={() => setIsShortcutsOpen(false)} />
+      ) : null}
+
+      {isMobileFiltersOpen ? (
+        <MobileFiltersDialog
+          items={sidebarItems}
+          activeFilter={sidebarFilter}
+          onClose={() => setIsMobileFiltersOpen(false)}
+          onSelect={(nextFilter) => {
+            setSidebarFilter(nextFilter)
+            setIsMobileFiltersOpen(false)
+          }}
+        />
       ) : null}
     </div>
   )
@@ -819,6 +1000,69 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
               </li>
             ))}
           </ul>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function MobileFiltersDialog({
+  items,
+  activeFilter,
+  onSelect,
+  onClose,
+}: {
+  items: Array<{
+    id: SidebarFilter
+    label: string
+    icon: IconComponent
+    count: number
+  }>
+  activeFilter: SidebarFilter
+  onSelect: (filter: SidebarFilter) => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:justify-center"
+      onClick={onClose}
+    >
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-filters-title"
+        className="w-full max-w-sm shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <CardHeader className="border-b">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle id="mobile-filters-title">Filters</CardTitle>
+              <CardDescription>Choose which agents are visible.</CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onClose}
+              aria-label="Close filters"
+            >
+              <XIcon />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <nav className="flex flex-col gap-1" aria-label="Mobile agent filters">
+            {items.map((item) => (
+              <SidebarItem
+                key={item.id}
+                active={activeFilter === item.id}
+                count={item.count}
+                icon={item.icon}
+                label={item.label}
+                onSelect={() => onSelect(item.id)}
+              />
+            ))}
+          </nav>
         </CardContent>
       </Card>
     </div>
@@ -998,6 +1242,38 @@ function BoardColumn({
   )
 }
 
+function LoadMoreColumn({
+  isLoading,
+  onLoadMore,
+}: {
+  isLoading: boolean
+  onLoadMore: () => void
+}) {
+  return (
+    <section className="flex w-64 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 p-4 text-center">
+      <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-background/70 text-muted-foreground">
+        <ArrowClockwiseIcon
+          aria-hidden="true"
+          className={cn("size-5", isLoading && "animate-spin text-primary")}
+        />
+      </div>
+      <h2 className="text-sm font-semibold">More agents available</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Load the next page without losing your current search or grouping.
+      </p>
+      <Button
+        className="mt-4"
+        size="sm"
+        variant="outline"
+        onClick={onLoadMore}
+        disabled={isLoading}
+      >
+        {isLoading ? "Loading..." : "Load more"}
+      </Button>
+    </section>
+  )
+}
+
 function BoardLoadingSkeleton() {
   return (
     <div
@@ -1123,6 +1399,7 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
   const previewArtifact = getPreviewArtifact(agent.artifacts)
   const hasCardContent = Boolean(agent.latestMessage || previewArtifact)
   const statusMeta = getStatusMeta(agent.status)
+  const artifactCount = agent.artifacts.length
 
   return (
     <Card
@@ -1136,12 +1413,37 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
       <CardHeader className="gap-2 pl-4">
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="line-clamp-2">{agent.title}</CardTitle>
-          <StatusBadge status={agent.status} />
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <StatusBadge status={agent.status} />
+            {artifactCount > 0 ? (
+              <Badge variant="outline" className="gap-1 text-[0.65rem]">
+                <FileIcon aria-hidden="true" className="size-3" />
+                {artifactCount}
+              </Badge>
+            ) : null}
+          </div>
         </div>
         <CardDescription className="flex items-center gap-1.5 truncate text-xs">
           <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
-          <span className="truncate">{agent.repository}</span>
+          {agent.repositoryUrl ? (
+            <a
+              href={agent.repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="truncate underline-offset-4 hover:text-foreground hover:underline"
+            >
+              {agent.repository}
+            </a>
+          ) : (
+            <span className="truncate">{agent.repository}</span>
+          )}
         </CardDescription>
+        {agent.branch ? (
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            <span className="truncate">{agent.branch}</span>
+          </div>
+        ) : null}
       </CardHeader>
       {hasCardContent ? (
         <CardContent className="flex flex-col gap-3 pl-4">
@@ -1158,6 +1460,15 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
           <ClockIcon aria-hidden="true" className="size-3" />
           {formatRelativeTime(agent.updatedAt ?? agent.createdAt)}
         </span>
+        {typeof agent.durationMs === "number" ? (
+          <span title="Run duration">{formatDuration(agent.durationMs)}</span>
+        ) : null}
+        {agent.createdBy ? (
+          <span className="inline-flex min-w-0 items-center gap-1 rounded-md bg-muted/50 px-1.5 py-0.5">
+            <span className="shrink-0">By</span>
+            <span className="truncate">{agent.createdBy}</span>
+          </span>
+        ) : null}
         {agent.prUrl ? (
           <a
             href={agent.prUrl}
@@ -1251,13 +1562,18 @@ function CreateAgentDialog({
   const [prompt, setPrompt] = React.useState("")
   const [repositoryId, setRepositoryId] = React.useState(repositories[0]?.id ?? "")
   const [modelId, setModelId] = React.useState(models[0]?.id ?? "")
-  const [branch, setBranch] = React.useState("")
+  const [branch, setBranch] = React.useState(repositories[0]?.defaultBranch ?? "")
   const [autoCreatePR, setAutoCreatePR] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const selectedRepositoryId = repositoryId || repositories[0]?.id || ""
+  const selectedRepository = repositories.find(
+    (repository) => repository.id === selectedRepositoryId
+  )
   const hasModels = models.length > 0
   const selectedModelId = modelId || models[0]?.id || ""
+  const selectedModel = models.find((model) => model.id === selectedModelId)
+  const promptWordCount = prompt.trim() ? prompt.trim().split(/\s+/).length : 0
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1340,7 +1656,15 @@ function CreateAgentDialog({
                   value={selectedRepositoryId}
                   onValueChange={(value) => {
                     if (value) {
+                      const nextRepository = repositories.find(
+                        (repository) => repository.id === value
+                      )
                       setRepositoryId(value)
+                      if (nextRepository?.defaultBranch) {
+                        setBranch((current) =>
+                          current.trim() ? current : nextRepository.defaultBranch ?? ""
+                        )
+                      }
                     }
                   }}
                 >
@@ -1387,6 +1711,11 @@ function CreateAgentDialog({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  {selectedModel?.description ? (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {selectedModel.description}
+                    </span>
+                  ) : null}
                 </label>
               ) : null}
             </div>
@@ -1396,8 +1725,13 @@ function CreateAgentDialog({
               <Input
                 value={branch}
                 onChange={(event) => setBranch(event.target.value)}
-                placeholder="main"
+                placeholder={selectedRepository?.defaultBranch ?? "main"}
               />
+              {selectedRepository?.defaultBranch ? (
+                <span className="text-xs font-normal text-muted-foreground">
+                  Default branch: {selectedRepository.defaultBranch}
+                </span>
+              ) : null}
             </label>
 
             <label className="flex flex-col gap-2 text-sm font-medium">
@@ -1409,6 +1743,10 @@ function CreateAgentDialog({
                 className="min-h-32"
                 required
               />
+              <span className="text-xs font-normal text-muted-foreground">
+                {promptWordCount} word{promptWordCount === 1 ? "" : "s"} ·{" "}
+                {prompt.length} character{prompt.length === 1 ? "" : "s"}
+              </span>
             </label>
 
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1442,7 +1780,14 @@ function CreateAgentDialog({
                 type="submit"
                 disabled={!prompt.trim() || !selectedRepositoryId || isSubmitting}
               >
-                {isSubmitting ? "Creating..." : "Create agent"}
+                {isSubmitting ? (
+                  <>
+                    <CircleNotchIcon data-icon="inline-start" className="animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create agent"
+                )}
               </Button>
             </div>
           </form>
@@ -1514,6 +1859,42 @@ function EmptyBoard({ onCreate }: { onCreate: () => void }) {
         <Button onClick={onCreate} size="sm">
           <PlusIcon data-icon="inline-start" />
           New agent
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function FilteredEmptyBoard({
+  query,
+  filterLabel,
+  onClear,
+}: {
+  query: string
+  filterLabel?: string
+  onClear: () => void
+}) {
+  const hasQuery = Boolean(query.trim())
+
+  return (
+    <div className="flex min-h-[50vh] flex-1 items-center justify-center">
+      <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
+        <div className="flex size-16 items-center justify-center rounded-2xl border border-border/60 bg-card/80 shadow-sm">
+          <MagnifyingGlassIcon
+            aria-hidden="true"
+            className="size-8 text-muted-foreground/60"
+          />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold">No matching agents</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {hasQuery ? `No agents match "${query.trim()}".` : "No agents match the selected filter."}
+            {filterLabel ? ` Filter: ${filterLabel}.` : ""}
+          </p>
+        </div>
+        <Button onClick={onClear} size="sm" variant="outline">
+          <XIcon data-icon="inline-start" />
+          Clear search and filters
         </Button>
       </div>
     </div>
@@ -1678,6 +2059,16 @@ function filterAgentsBySidebar(agents: AgentCard[], filter: SidebarFilter) {
   return agents
 }
 
+function mergeAgentLists(current: AgentCard[], incoming: AgentCard[]) {
+  const byId = new Map(current.map((agent) => [agent.id, agent]))
+
+  for (const agent of incoming) {
+    byId.set(agent.id, agent)
+  }
+
+  return Array.from(byId.values())
+}
+
 function isRecentlyActive(value: string | undefined) {
   if (!value) {
     return false
@@ -1819,6 +2210,22 @@ function formatAbsoluteTime(value: number | string) {
   })
 }
 
+function formatRelativeTimestamp(value: number) {
+  const diffMs = Date.now() - value
+  const minutes = Math.max(1, Math.floor(diffMs / 60_000))
+  if (minutes < 60) {
+    return `${minutes}m ago`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) {
+    return `${hours}h ago`
+  }
+
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 function formatRelativeTime(value: string | undefined) {
   if (!value) {
     return "No activity"
@@ -1842,4 +2249,25 @@ function formatRelativeTime(value: string | undefined) {
 
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+function formatDuration(value: number) {
+  if (!Number.isFinite(value) || value < 0) {
+    return "Unknown duration"
+  }
+
+  const seconds = Math.round(value / 1000)
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
 }
