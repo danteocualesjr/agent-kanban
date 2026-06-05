@@ -305,7 +305,9 @@ export function AgentKanbanApp() {
         window.localStorage.setItem(sessionStorageKey, restored.id)
         setSession(restored)
         setStatus("ready")
-        await loadBoard(restored.id)
+        await loadBoard(restored.id, {
+          includeArchived: readStoredPreferences().includeArchived ?? false,
+        })
       } catch {
         if (!cancelled) {
           window.localStorage.removeItem(sessionStorageKey)
@@ -360,7 +362,7 @@ export function AgentKanbanApp() {
     window.localStorage.setItem(sessionStorageKey, nextSession.id)
     setSession(nextSession)
     setStatus("ready")
-    await loadBoard(nextSession.id)
+    await loadBoard(nextSession.id, { includeArchived })
   }
 
   const handleRefresh = React.useCallback(async () => {
@@ -412,7 +414,7 @@ export function AgentKanbanApp() {
   async function handleAgentCreated(agent: AgentCard) {
     setAgents((current) => [agent, ...current])
     if (session) {
-      await loadBoard(session.id)
+      await loadBoard(session.id, { includeArchived })
     }
   }
 
@@ -428,14 +430,6 @@ export function AgentKanbanApp() {
       includeArchived,
     })
   }, [status, groupBy, sidebarFilter, isSidebarCollapsed, includeArchived])
-
-  React.useEffect(() => {
-    if (status !== "ready" || !session) {
-      return
-    }
-
-    void loadBoard(session.id, { includeArchived })
-  }, [status, session, includeArchived, loadBoard])
 
   React.useEffect(() => {
     if (status !== "ready") {
@@ -778,7 +772,13 @@ export function AgentKanbanApp() {
               type="checkbox"
               className="size-4 accent-primary"
               checked={includeArchived}
-              onChange={(event) => setIncludeArchived(event.target.checked)}
+              onChange={(event) => {
+                const checked = event.target.checked
+                setIncludeArchived(checked)
+                if (session) {
+                  void loadBoard(session.id, { includeArchived: checked })
+                }
+              }}
             />
             Archived
           </label>
