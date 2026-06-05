@@ -1207,6 +1207,9 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
           <ClockIcon aria-hidden="true" className="size-3" />
           {formatRelativeTime(agent.updatedAt ?? agent.createdAt)}
         </span>
+        {typeof agent.durationMs === "number" ? (
+          <span title="Run duration">{formatDuration(agent.durationMs)}</span>
+        ) : null}
         {agent.createdBy ? (
           <span className="inline-flex min-w-0 items-center gap-1 rounded-md bg-muted/50 px-1.5 py-0.5">
             <span className="shrink-0">By</span>
@@ -1897,4 +1900,25 @@ function formatRelativeTime(value: string | undefined) {
 
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+function formatDuration(value: number) {
+  if (!Number.isFinite(value) || value < 0) {
+    return "Unknown duration"
+  }
+
+  const seconds = Math.round(value / 1000)
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
 }
