@@ -362,6 +362,18 @@ export function AgentKanbanApp() {
       return
     }
 
+    writeStoredPreferences({
+      groupBy,
+      sidebarFilter,
+      isSidebarCollapsed,
+    })
+  }, [status, groupBy, sidebarFilter, isSidebarCollapsed])
+
+  React.useEffect(() => {
+    if (status !== "ready") {
+      return
+    }
+
     function isEditableTarget(target: EventTarget | null): boolean {
       if (!(target instanceof HTMLElement)) {
         return false
