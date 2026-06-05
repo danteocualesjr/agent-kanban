@@ -1207,6 +1207,12 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
           <ClockIcon aria-hidden="true" className="size-3" />
           {formatRelativeTime(agent.updatedAt ?? agent.createdAt)}
         </span>
+        {agent.createdBy ? (
+          <span className="inline-flex min-w-0 items-center gap-1 rounded-md bg-muted/50 px-1.5 py-0.5">
+            <span className="shrink-0">By</span>
+            <span className="truncate">{agent.createdBy}</span>
+          </span>
+        ) : null}
         {agent.prUrl ? (
           <a
             href={agent.prUrl}
