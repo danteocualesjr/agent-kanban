@@ -493,6 +493,7 @@ export function AgentKanbanApp() {
   const selectedGroupOption = groupOptions.find((option) => option.id === selectedGroupBy)
   const SelectedGroupIcon = selectedGroupOption?.icon
   const groups = groupAgents(visibleAgents, selectedGroupBy)
+  const activeFilterLabel = sidebarFilters.find((item) => item.id === sidebarFilter)?.label
   const signedInName = session.user?.name ?? "Cursor user"
   const signedInLabel = session.user?.email
     ? `${signedInName} (${session.user.email})`
@@ -752,6 +753,16 @@ export function AgentKanbanApp() {
                 ))
               ) : showBoardLoading ? (
                 <BoardLoadingSkeleton />
+              ) : agents.length > 0 ? (
+                <FilteredEmptyBoard
+                  query={query}
+                  filterLabel={sidebarFilter !== "all" ? activeFilterLabel : undefined}
+                  onClear={() => {
+                    setQuery("")
+                    setSidebarFilter("all")
+                    searchInputRef.current?.focus()
+                  }}
+                />
               ) : (
                 <EmptyBoard onCreate={() => setIsCreateOpen(true)} />
               )}
@@ -1581,6 +1592,42 @@ function EmptyBoard({ onCreate }: { onCreate: () => void }) {
         <Button onClick={onCreate} size="sm">
           <PlusIcon data-icon="inline-start" />
           New agent
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function FilteredEmptyBoard({
+  query,
+  filterLabel,
+  onClear,
+}: {
+  query: string
+  filterLabel?: string
+  onClear: () => void
+}) {
+  const hasQuery = Boolean(query.trim())
+
+  return (
+    <div className="flex min-h-[50vh] flex-1 items-center justify-center">
+      <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
+        <div className="flex size-16 items-center justify-center rounded-2xl border border-border/60 bg-card/80 shadow-sm">
+          <MagnifyingGlassIcon
+            aria-hidden="true"
+            className="size-8 text-muted-foreground/60"
+          />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold">No matching agents</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {hasQuery ? `No agents match "${query.trim()}".` : "No agents match the selected filter."}
+            {filterLabel ? ` Filter: ${filterLabel}.` : ""}
+          </p>
+        </div>
+        <Button onClick={onClear} size="sm" variant="outline">
+          <XIcon data-icon="inline-start" />
+          Clear search and filters
         </Button>
       </div>
     </div>
