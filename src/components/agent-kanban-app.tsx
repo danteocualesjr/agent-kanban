@@ -90,6 +90,7 @@ type StoredPreferences = {
   groupBy?: GroupBy
   sidebarFilter?: SidebarFilter
   isSidebarCollapsed?: boolean
+  includeArchived?: boolean
 }
 
 const groupByValues: ReadonlySet<string> = new Set<GroupBy>([
@@ -135,6 +136,9 @@ function readStoredPreferences(): StoredPreferences {
     }
     if (typeof candidate.isSidebarCollapsed === "boolean") {
       next.isSidebarCollapsed = candidate.isSidebarCollapsed
+    }
+    if (typeof candidate.includeArchived === "boolean") {
+      next.includeArchived = candidate.includeArchived
     }
 
     return next
@@ -211,6 +215,9 @@ export function AgentKanbanApp() {
   const [sidebarFilter, setSidebarFilter] = React.useState<SidebarFilter>(
     () => readStoredPreferences().sidebarFilter ?? "all"
   )
+  const [includeArchived, setIncludeArchived] = React.useState(
+    () => readStoredPreferences().includeArchived ?? false
+  )
   const [query, setQuery] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -222,41 +229,59 @@ export function AgentKanbanApp() {
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null)
   const searchInputRef = React.useRef<HTMLInputElement>(null)
 
-  const loadBoard = React.useCallback(async (sessionId: string) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const [agentResult, repositoryResult, modelResult] = await Promise.all([
-        apiFetch<AgentListResponse>("/api/agents", sessionId),
-        apiFetch<{ repositories: RepositoryOption[] }>(
-          "/api/repositories",
-          sessionId
-        ),
-        apiFetch<{ models: ModelOption[] }>("/api/models", sessionId),
-      ])
-      setAgents(agentResult.agents)
-      setRepositories(repositoryResult.repositories)
-      setModels(modelResult.models)
-      setLastSyncedAt(Date.now())
-    } catch (loadError) {
-      setError(errorMessage(loadError, "Failed to load cloud agents."))
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+  const loadBoard = React.useCallback(
+    async (
+      sessionId: string,
+      options: { includeArchived?: boolean } = {}
+    ) => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const agentsPath = options.includeArchived
+          ? "/api/agents?includeArchived=true"
+          : "/api/agents"
+        const [agentResult, repositoryResult, modelResult] = await Promise.all([
+          apiFetch<AgentListResponse>(agentsPath, sessionId),
+          apiFetch<{ repositories: RepositoryOption[] }>(
+            "/api/repositories",
+            sessionId
+          ),
+          apiFetch<{ models: ModelOption[] }>("/api/models", sessionId),
+        ])
+        setAgents(agentResult.agents)
+        setRepositories(repositoryResult.repositories)
+        setModels(modelResult.models)
+        setLastSyncedAt(Date.now())
+      } catch (loadError) {
+        setError(errorMessage(loadError, "Failed to load cloud agents."))
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    []
+  )
 
   // Silent background refresh used by polling and visibility changes.
   // Doesn't toggle isLoading or surface errors so the user can keep working
   // with whatever data is already on the board.
-  const refreshAgentsQuietly = React.useCallback(async (sessionId: string) => {
-    try {
-      const result = await apiFetch<AgentListResponse>("/api/agents", sessionId)
-      setAgents(result.agents)
-      setLastSyncedAt(Date.now())
-    } catch {
-      // Intentionally swallowed; manual refresh will surface errors loudly.
-    }
-  }, [])
+  const refreshAgentsQuietly = React.useCallback(
+    async (
+      sessionId: string,
+      options: { includeArchived?: boolean } = {}
+    ) => {
+      try {
+        const agentsPath = options.includeArchived
+          ? "/api/agents?includeArchived=true"
+          : "/api/agents"
+        const result = await apiFetch<AgentListResponse>(agentsPath, sessionId)
+        setAgents(result.agents)
+        setLastSyncedAt(Date.now())
+      } catch {
+        // Intentionally swallowed; manual refresh will surface errors loudly.
+      }
+    },
+    []
+  )
 
   React.useEffect(() => {
     let cancelled = false
@@ -308,7 +333,7 @@ export function AgentKanbanApp() {
       if (!isTabVisible()) {
         return
       }
-      void refreshAgentsQuietly(sessionId)
+      void refreshAgentsQuietly(sessionId, { includeArchived })
     }
 
     function handleVisibilityChange() {
@@ -324,7 +349,7 @@ export function AgentKanbanApp() {
       window.clearInterval(intervalId)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
-  }, [status, session, refreshAgentsQuietly])
+  }, [status, session, refreshAgentsQuietly, includeArchived])
 
   async function handleSessionCreated(nextSession: PublicSession) {
     window.localStorage.setItem(sessionStorageKey, nextSession.id)
@@ -337,8 +362,8 @@ export function AgentKanbanApp() {
     if (!session) {
       return
     }
-    await loadBoard(session.id)
-  }, [session, loadBoard])
+    await loadBoard(session.id, { includeArchived })
+  }, [session, loadBoard, includeArchived])
 
   async function handleForgetKey() {
     window.localStorage.removeItem(sessionStorageKey)
@@ -368,8 +393,17 @@ export function AgentKanbanApp() {
       groupBy,
       sidebarFilter,
       isSidebarCollapsed,
+      includeArchived,
     })
-  }, [status, groupBy, sidebarFilter, isSidebarCollapsed])
+  }, [status, groupBy, sidebarFilter, isSidebarCollapsed, includeArchived])
+
+  React.useEffect(() => {
+    if (status !== "ready" || !session) {
+      return
+    }
+
+    void loadBoard(session.id, { includeArchived })
+  }, [status, session, includeArchived, loadBoard])
 
   React.useEffect(() => {
     if (status !== "ready") {
@@ -685,6 +719,16 @@ export function AgentKanbanApp() {
               </SelectGroup>
             </SelectContent>
           </Select>
+
+          <label className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground md:flex">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={includeArchived}
+              onChange={(event) => setIncludeArchived(event.target.checked)}
+            />
+            Archived
+          </label>
 
           <div className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground xl:flex">
             {hasActiveFilters ? (
