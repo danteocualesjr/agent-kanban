@@ -567,6 +567,7 @@ export function AgentKanbanApp() {
   const groups = groupAgents(visibleAgents, selectedGroupBy)
   const activeFilterLabel = sidebarFilters.find((item) => item.id === sidebarFilter)?.label
   const hasActiveFilters = Boolean(query.trim()) || sidebarFilter !== "all"
+  const boardStats = getBoardStats(agents, visibleAgents)
   const signedInName = session.user?.name ?? "Cursor user"
   const signedInLabel = session.user?.email
     ? `${signedInName} (${session.user.email})`
@@ -574,10 +575,14 @@ export function AgentKanbanApp() {
   const signedInInitial = signedInName.trim().charAt(0).toUpperCase() || "C"
 
   return (
-    <div className="flex h-screen min-h-0 bg-background text-foreground">
+    <div className="relative isolate flex h-screen min-h-0 overflow-hidden bg-background text-foreground">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_55%_-20%,oklch(0.68_0.18_264_/_0.18),transparent_65%),linear-gradient(180deg,transparent,oklch(0_0_0_/_0.03))]"
+      />
       <aside
         className={cn(
-          "hidden shrink-0 border-r bg-sidebar/70 transition-[width] duration-200 lg:flex lg:flex-col",
+          "hidden shrink-0 border-r bg-sidebar/85 shadow-xl shadow-black/5 backdrop-blur-xl transition-[width] duration-200 dark:shadow-black/20 lg:flex lg:flex-col",
           isSidebarCollapsed ? "w-16" : "w-64"
         )}
       >
@@ -599,11 +604,11 @@ export function AgentKanbanApp() {
             </Button>
           ) : (
             <>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-primary shadow-sm shadow-primary/40 text-primary-foreground">
+              <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/75 text-primary-foreground shadow-sm shadow-primary/40 ring-1 ring-primary-foreground/15">
                 <KanbanIcon aria-hidden="true" className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">Agent Kanban</div>
+                <div className="truncate text-sm font-semibold tracking-tight">Agent Kanban</div>
                 <div className="truncate text-xs text-muted-foreground">
                   Cursor Cloud Agents
                 </div>
@@ -623,7 +628,7 @@ export function AgentKanbanApp() {
         <Separator />
         <nav
           className={cn(
-            "flex flex-1 flex-col gap-1 text-sm",
+            "flex flex-1 flex-col gap-1.5 text-sm",
             isSidebarCollapsed ? "items-center p-2" : "p-3"
           )}
           aria-label="Agent filters"
@@ -662,11 +667,18 @@ export function AgentKanbanApp() {
           </div>
         ) : (
           <div className="flex flex-col gap-2 p-3">
-            <div className="rounded-lg border bg-background/60 p-3">
-              <div className="text-xs font-medium text-muted-foreground">Signed in</div>
-              <div className="mt-1 truncate text-sm">{signedInName}</div>
+            <div className="rounded-xl border bg-background/70 p-3 shadow-sm">
+              <div className="flex items-center gap-2">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-semibold text-primary ring-1 ring-primary/20">
+                  {signedInInitial}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-muted-foreground">Signed in</div>
+                  <div className="truncate text-sm font-medium">{signedInName}</div>
+                </div>
+              </div>
               {session.user?.email ? (
-                <div className="truncate text-xs text-muted-foreground">
+                <div className="mt-2 truncate rounded-md bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
                   {session.user.email}
                 </div>
               ) : null}
@@ -681,9 +693,9 @@ export function AgentKanbanApp() {
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex min-w-0 flex-1 flex-col outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
+        className="relative flex min-w-0 flex-1 flex-col outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
       >
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-sm">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b bg-background/75 px-4 shadow-sm shadow-black/5 backdrop-blur-xl">
           <Button
             variant="outline"
             size="icon-sm"
@@ -696,7 +708,7 @@ export function AgentKanbanApp() {
           <div className="relative flex min-w-48 flex-1 items-center">
             <MagnifyingGlassIcon
               aria-hidden="true"
-              className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground"
+              className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
             />
             <Input
               ref={searchInputRef}
@@ -704,7 +716,7 @@ export function AgentKanbanApp() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search agents and repos..."
               aria-label="Search agents and repositories"
-              className="h-8 border-0 bg-muted/60 pl-8 pr-10"
+              className="h-9 rounded-xl border-border/60 bg-card/70 pl-9 pr-10 shadow-inner shadow-black/5 transition focus-visible:bg-card"
             />
             {query ? (
               <Button
@@ -715,7 +727,7 @@ export function AgentKanbanApp() {
                   searchInputRef.current?.focus()
                 }}
                 aria-label="Clear search"
-                className="absolute right-0.5 size-7"
+                className="absolute right-1 size-7"
               >
                 <XIcon aria-hidden="true" className="size-3.5" />
               </Button>
@@ -743,7 +755,7 @@ export function AgentKanbanApp() {
               }
             }}
           >
-            <SelectTrigger aria-label="Group agents" size="sm">
+            <SelectTrigger aria-label="Group agents" size="sm" className="bg-card/70 shadow-sm">
               {SelectedGroupIcon ? (
                 <SelectedGroupIcon
                   aria-hidden="true"
@@ -767,21 +779,17 @@ export function AgentKanbanApp() {
             </SelectContent>
           </Select>
 
-          <label className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground md:flex">
-            <input
-              type="checkbox"
-              className="size-4 accent-primary"
-              checked={includeArchived}
-              onChange={(event) => {
-                const checked = event.target.checked
-                setIncludeArchived(checked)
-                if (session) {
-                  void loadBoard(session.id, { includeArchived: checked })
-                }
-              }}
-            />
-            Archived
-          </label>
+          <CheckboxPill
+            checked={includeArchived}
+            label="Archived"
+            className="hidden md:flex"
+            onChange={(checked) => {
+              setIncludeArchived(checked)
+              if (session) {
+                void loadBoard(session.id, { includeArchived: checked })
+              }
+            }}
+          />
 
           <div className="hidden shrink-0 items-center gap-2 text-xs text-muted-foreground xl:flex">
             {hasActiveFilters ? (
@@ -797,7 +805,10 @@ export function AgentKanbanApp() {
                 Reset filters
               </Button>
             ) : null}
-            <span>{visibleAgents.length} agent{visibleAgents.length !== 1 ? "s" : ""}</span>
+            <HeaderMetric label="Visible" value={visibleAgents.length} />
+            <HeaderMetric label="Active" value={boardStats.activeCount} />
+            <HeaderMetric label="Artifacts" value={boardStats.artifactCount} />
+            <HeaderMetric label="PRs" value={boardStats.prCount} />
             {isLoading ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
                 <CircleNotchIcon aria-hidden="true" className="size-3 animate-spin" />
@@ -831,13 +842,14 @@ export function AgentKanbanApp() {
             )}
           </div>
 
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading} className="bg-card/70 shadow-sm">
             <ArrowClockwiseIcon data-icon="inline-start" className={isLoading ? "animate-spin" : ""} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+          <Button size="sm" onClick={() => setIsCreateOpen(true)} className="shadow-sm shadow-primary/20">
             <PlusIcon data-icon="inline-start" />
-            New agent
+            <span className="hidden sm:inline">New agent</span>
+            <span className="sm:hidden">New</span>
           </Button>
           <Button
             variant="ghost"
@@ -852,14 +864,15 @@ export function AgentKanbanApp() {
         </header>
 
         {error ? (
-          <div className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            {error}
+          <div className="flex items-center gap-2 border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+            <WarningCircleIcon aria-hidden="true" className="size-4 shrink-0" />
+            <span>{error}</span>
           </div>
         ) : null}
 
-        <section className="flex min-h-0 flex-1 flex-col">
+        <section className="flex min-h-0 flex-1 flex-col bg-[linear-gradient(180deg,oklch(1_0_0_/_0.04),transparent_35%)]">
           <ScrollArea className="min-h-0 flex-1">
-            <div className="flex min-h-full gap-3 p-4">
+            <div className="flex min-h-full gap-4 p-4 lg:p-5">
               {groups.length > 0 ? (
                 <>
                   {groups.map((group) => (
@@ -944,6 +957,45 @@ function Kbd({
   )
 }
 
+function HeaderMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/70 px-2.5 py-1 shadow-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-semibold text-foreground">{value}</span>
+    </span>
+  )
+}
+
+function CheckboxPill({
+  checked,
+  className,
+  label,
+  onChange,
+}: {
+  checked: boolean
+  className?: string
+  label: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label
+      className={cn(
+        "shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border/60 bg-card/70 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm transition hover:text-foreground",
+        checked && "border-primary/30 bg-primary/10 text-primary",
+        className
+      )}
+    >
+      <input
+        type="checkbox"
+        className="size-3.5 accent-primary"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      {label}
+    </label>
+  )
+}
+
 const shortcutItems: { keys: string[]; description: string }[] = [
   { keys: ["/"], description: "Focus search" },
   { keys: ["n"], description: "New agent" },
@@ -956,14 +1008,14 @@ const shortcutItems: { keys: string[]; description: string }[] = [
 function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex animate-in fade-in-0 items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <Card
         role="dialog"
         aria-modal="true"
         aria-labelledby="shortcuts-title"
-        className="w-full max-w-sm shadow-2xl"
+        className="w-full max-w-sm animate-in zoom-in-95 slide-in-from-bottom-2 border-border/70 bg-card/95 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <CardHeader className="border-b">
@@ -1024,14 +1076,14 @@ function MobileFiltersDialog({
 }) {
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:justify-center"
+      className="fixed inset-0 z-40 flex animate-in fade-in-0 items-end bg-background/80 p-4 backdrop-blur-sm sm:items-center sm:justify-center"
       onClick={onClose}
     >
       <Card
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-filters-title"
-        className="w-full max-w-sm shadow-2xl"
+        className="w-full max-w-sm animate-in zoom-in-95 slide-in-from-bottom-4 rounded-2xl border-border/70 bg-card/95 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <CardHeader className="border-b">
@@ -1074,10 +1126,10 @@ function LoadingScreen() {
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.68_0.18_264_/_0.12),transparent)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.68_0.18_264_/_0.18),transparent),linear-gradient(180deg,transparent,oklch(0_0_0_/_0.03))]"
       />
-      <div className="relative flex flex-col items-center gap-4 text-center">
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30">
+      <div className="relative flex w-full max-w-sm flex-col items-center gap-5 rounded-3xl border border-border/60 bg-card/75 p-8 text-center shadow-2xl shadow-black/10 backdrop-blur-xl">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/75 shadow-lg shadow-primary/30 ring-1 ring-primary-foreground/15">
           <KanbanIcon aria-hidden="true" className="size-7 text-primary-foreground" />
         </div>
         <div>
@@ -1086,6 +1138,10 @@ function LoadingScreen() {
             Loading Agent Kanban
           </div>
           <p className="mt-1 text-xs text-muted-foreground">Checking for a saved API key…</p>
+        </div>
+        <div className="flex w-full flex-col gap-2" aria-hidden="true">
+          <div className="h-2.5 w-full animate-pulse rounded-full bg-muted" />
+          <div className="h-2.5 w-8/12 animate-pulse rounded-full bg-muted/70" />
         </div>
       </div>
     </div>
@@ -1130,19 +1186,20 @@ function OnboardingScreen({
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.68_0.18_264_/_0.18),transparent)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,oklch(0.68_0.18_264_/_0.2),transparent),linear-gradient(180deg,transparent,oklch(0_0_0_/_0.04))]"
       />
-      <div className="relative w-full max-w-sm">
+      <div className="relative grid w-full max-w-5xl gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30">
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-primary/75 shadow-lg shadow-primary/30 ring-1 ring-primary-foreground/15">
             <KanbanIcon aria-hidden="true" className="size-7 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Agent Kanban</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Agent Kanban</h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">
             A kanban board for your Cursor Cloud Agents
           </p>
+          <OnboardingHighlights />
         </div>
-        <Card className="border border-border/60 bg-card/90 shadow-2xl backdrop-blur-sm">
+        <Card className="border border-border/60 bg-card/90 shadow-2xl shadow-black/10 backdrop-blur-xl">
           <CardHeader className="gap-1 pb-2">
             <CardTitle className="text-base">Connect your Cursor account</CardTitle>
             <CardDescription>
@@ -1163,7 +1220,7 @@ function OnboardingScreen({
                   className="font-mono"
                 />
               </label>
-              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+              <label className="flex items-start gap-2 rounded-xl border border-border/50 bg-muted/30 p-3 text-sm text-muted-foreground">
                 <input
                   type="checkbox"
                   className="mt-0.5 size-4 accent-primary"
@@ -1211,6 +1268,24 @@ function OnboardingScreen({
   )
 }
 
+function OnboardingHighlights() {
+  const highlights = [
+    "Track agent status",
+    "Preview artifacts",
+    "Open pull requests",
+  ]
+
+  return (
+    <div className="mt-5 flex flex-wrap justify-center gap-2">
+      {highlights.map((highlight) => (
+        <Badge key={highlight} variant="outline" className="bg-background/60">
+          {highlight}
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
 function BoardColumn({
   title,
   icon: Icon,
@@ -1221,19 +1296,19 @@ function BoardColumn({
   agents: AgentCard[]
 }) {
   return (
-    <section className="flex w-80 shrink-0 flex-col rounded-xl border border-border/40 bg-muted/10">
-      <header className="flex items-center justify-between rounded-t-xl border-b border-border/40 bg-muted/20 px-3 py-2.5">
+    <section className="flex w-[21rem] shrink-0 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/45 shadow-sm backdrop-blur-sm">
+      <header className="flex items-center justify-between border-b border-border/40 bg-muted/30 px-3 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex size-5 items-center justify-center rounded-md bg-background/60">
+          <span className="flex size-6 items-center justify-center rounded-lg bg-background/70 shadow-sm ring-1 ring-border/50">
             <Icon aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
           </span>
-          <h2 className="truncate text-sm font-semibold">{title}</h2>
+          <h2 className="truncate text-sm font-semibold tracking-tight">{title}</h2>
         </div>
-        <span className="flex size-5 items-center justify-center rounded-full bg-background/60 text-xs font-medium text-muted-foreground ring-1 ring-border/60">
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-background/70 px-2 text-xs font-semibold text-muted-foreground shadow-sm ring-1 ring-border/60">
           {agents.length}
         </span>
       </header>
-      <div className="flex flex-col gap-2 p-2">
+      <div className="flex flex-col gap-2.5 p-2.5">
         {agents.map((agent) => (
           <AgentCardPreview key={agent.id} agent={agent} />
         ))}
@@ -1250,8 +1325,8 @@ function LoadMoreColumn({
   onLoadMore: () => void
 }) {
   return (
-    <section className="flex w-64 shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 p-4 text-center">
-      <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-background/70 text-muted-foreground">
+    <section className="flex w-72 shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-card/35 p-5 text-center shadow-sm backdrop-blur-sm transition hover:bg-card/50">
+      <div className="mb-3 flex size-11 items-center justify-center rounded-2xl bg-background/75 text-muted-foreground shadow-sm ring-1 ring-border/60">
         <ArrowClockwiseIcon
           aria-hidden="true"
           className={cn("size-5", isLoading && "animate-spin text-primary")}
@@ -1268,7 +1343,7 @@ function LoadMoreColumn({
         onClick={onLoadMore}
         disabled={isLoading}
       >
-        {isLoading ? "Loading..." : "Load more"}
+        {isLoading ? "Loading..." : "Load more agents"}
       </Button>
     </section>
   )
@@ -1280,7 +1355,7 @@ function BoardLoadingSkeleton() {
       role="status"
       aria-live="polite"
       aria-label="Loading cloud agents"
-      className="flex min-h-[60vh] flex-1 gap-3"
+      className="flex min-h-[60vh] flex-1 gap-4"
     >
       <span className="sr-only">Loading cloud agents</span>
       {boardLoadingColumns.map((column) => {
@@ -1289,11 +1364,11 @@ function BoardLoadingSkeleton() {
         return (
           <section
             key={column.id}
-            className="flex w-80 shrink-0 flex-col rounded-xl border bg-muted/20 shadow-sm"
+            className="flex w-[21rem] shrink-0 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/45 shadow-sm backdrop-blur-sm"
           >
-            <header className="flex items-center justify-between px-3 py-2">
+            <header className="flex items-center justify-between border-b border-border/40 bg-muted/30 px-3 py-3">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="flex size-5 items-center justify-center rounded-md bg-background/70 text-muted-foreground">
+                <span className="flex size-6 items-center justify-center rounded-lg bg-background/70 text-muted-foreground shadow-sm ring-1 ring-border/50">
                   <Icon aria-hidden="true" className="size-3.5" />
                 </span>
                 <div
@@ -1302,11 +1377,11 @@ function BoardLoadingSkeleton() {
                 />
               </div>
               <div
-                className="h-5 w-8 animate-pulse rounded-full bg-background/80 ring-1 ring-border/60"
+                className="h-6 w-10 animate-pulse rounded-full bg-background/80 ring-1 ring-border/60"
                 aria-hidden="true"
               />
             </header>
-            <div className="flex flex-col gap-2 p-2">
+            <div className="flex flex-col gap-2.5 p-2.5">
               {Array.from({ length: column.cards }).map((_, cardIndex) => {
                 const [titleWidth, metaWidth] =
                   loadingCardLineWidths[cardIndex % loadingCardLineWidths.length]
@@ -1315,7 +1390,7 @@ function BoardLoadingSkeleton() {
                   <Card
                     key={`${column.id}-${cardIndex}`}
                     size="sm"
-                    className="gap-3 bg-card/70 ring-border/60"
+                    className="gap-3 bg-card/80 ring-border/60 shadow-sm"
                   >
                     <CardHeader className="gap-2">
                       <div className="flex items-start justify-between gap-3">
@@ -1404,26 +1479,28 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
   return (
     <Card
       size="sm"
-      className="relative gap-3 bg-card/70 ring-border/60 transition-all hover:bg-card hover:-translate-y-px hover:shadow-md hover:shadow-black/20"
+      className="relative gap-3 bg-card/80 ring-border/60 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-card hover:shadow-lg hover:shadow-black/15 hover:ring-primary/25"
     >
       <div
         aria-hidden="true"
-        className={cn("absolute inset-y-0 left-0 w-[3px] rounded-l-xl", statusMeta.dotClass)}
+        className={cn("absolute inset-y-0 left-0 w-1 rounded-l-xl", statusMeta.dotClass)}
       />
       <CardHeader className="gap-2 pl-4">
         <div className="flex items-start justify-between gap-3">
-          <CardTitle className="line-clamp-2">{agent.title}</CardTitle>
+          <CardTitle className="line-clamp-2 transition-colors group-hover/card:text-primary">
+            {agent.title}
+          </CardTitle>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <StatusBadge status={agent.status} />
             {artifactCount > 0 ? (
-              <Badge variant="outline" className="gap-1 text-[0.65rem]">
+              <Badge variant="outline" className="gap-1 bg-muted/40 text-[0.65rem]">
                 <FileIcon aria-hidden="true" className="size-3" />
                 {artifactCount}
               </Badge>
             ) : null}
           </div>
         </div>
-        <CardDescription className="flex items-center gap-1.5 truncate text-xs">
+        <CardDescription className="flex items-center gap-1.5 truncate rounded-md bg-muted/35 px-2 py-1 text-xs">
           <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
           {agent.repositoryUrl ? (
             <a
@@ -1439,7 +1516,7 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
           )}
         </CardDescription>
         {agent.branch ? (
-          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-1.5 rounded-md bg-muted/25 px-2 py-1 text-xs text-muted-foreground">
             <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
             <span className="truncate">{agent.branch}</span>
           </div>
@@ -1448,14 +1525,14 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
       {hasCardContent ? (
         <CardContent className="flex flex-col gap-3 pl-4">
           {agent.latestMessage ? (
-            <p className="line-clamp-2 text-sm text-muted-foreground">
+            <p className="line-clamp-2 rounded-lg border border-border/40 bg-muted/20 p-2 text-sm leading-5 text-muted-foreground">
               {agent.latestMessage}
             </p>
           ) : null}
           {previewArtifact ? <ArtifactTile artifact={previewArtifact} /> : null}
         </CardContent>
       ) : null}
-      <CardFooter className="flex-wrap justify-between gap-2 border-t-0 bg-transparent pl-4 text-xs text-muted-foreground">
+      <CardFooter className="flex-wrap justify-between gap-2 border-t border-border/30 bg-muted/15 pl-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <ClockIcon aria-hidden="true" className="size-3" />
           {formatRelativeTime(agent.updatedAt ?? agent.createdAt)}
@@ -1488,7 +1565,7 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
 function ArtifactTile({ artifact }: { artifact: AgentCard["artifacts"][number] }) {
   if (artifact.previewKind === "video" && artifact.mediaUrl) {
     return (
-      <div className="overflow-hidden rounded-lg bg-muted">
+      <div className="overflow-hidden rounded-xl border border-border/50 bg-muted shadow-sm">
         <video
           src={artifact.mediaUrl}
           className="aspect-video w-full object-cover"
@@ -1506,7 +1583,7 @@ function ArtifactTile({ artifact }: { artifact: AgentCard["artifacts"][number] }
 
   if (artifact.previewKind === "video") {
     return (
-      <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 p-2 text-xs">
+      <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border/40 bg-muted/40 p-2 text-xs">
         <PlayIcon
           aria-hidden="true"
           className="size-3.5 shrink-0 text-muted-foreground"
@@ -1522,7 +1599,7 @@ function ArtifactTile({ artifact }: { artifact: AgentCard["artifacts"][number] }
         href={artifact.mediaUrl}
         target="_blank"
         rel="noreferrer"
-        className="group overflow-hidden rounded-lg bg-muted"
+        className="group overflow-hidden rounded-xl border border-border/50 bg-muted shadow-sm"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- artifact media is served through an authenticated app route. */}
         <img
@@ -1535,7 +1612,7 @@ function ArtifactTile({ artifact }: { artifact: AgentCard["artifacts"][number] }
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 p-2 text-xs">
+    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border/40 bg-muted/40 p-2 text-xs">
       <FileIcon
         aria-hidden="true"
         className="size-3.5 shrink-0 text-muted-foreground"
@@ -1614,12 +1691,12 @@ function CreateAgentDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-40 flex animate-in fade-in-0 items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
       <Card
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-agent-title"
-        className="max-h-[90vh] w-full max-w-2xl shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl animate-in zoom-in-95 slide-in-from-bottom-2 border-border/70 bg-card/95 shadow-2xl shadow-black/15"
       >
         <CardHeader className="border-b">
           <div className="flex items-start justify-between gap-4">
@@ -1642,10 +1719,11 @@ function CreateAgentDialog({
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Triage checkout bug"
+                className="bg-background/60"
               />
             </label>
 
-            <div className={cn("grid gap-4", hasModels && "md:grid-cols-2")}>
+            <div className={cn("grid gap-4 rounded-2xl border border-border/50 bg-muted/20 p-3", hasModels && "md:grid-cols-2")}>
               <label className="flex flex-col gap-2 text-sm font-medium">
                 Repository
                 <Select
@@ -1668,7 +1746,7 @@ function CreateAgentDialog({
                     }
                   }}
                 >
-                  <SelectTrigger aria-label="Repository" className="w-full">
+                  <SelectTrigger aria-label="Repository" className="w-full bg-background/60">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent align="start">
@@ -1698,7 +1776,7 @@ function CreateAgentDialog({
                       }
                     }}
                   >
-                    <SelectTrigger aria-label="Model" className="w-full">
+                    <SelectTrigger aria-label="Model" className="w-full bg-background/60">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent align="start">
@@ -1726,6 +1804,7 @@ function CreateAgentDialog({
                 value={branch}
                 onChange={(event) => setBranch(event.target.value)}
                 placeholder={selectedRepository?.defaultBranch ?? "main"}
+                className="bg-background/60"
               />
               {selectedRepository?.defaultBranch ? (
                 <span className="text-xs font-normal text-muted-foreground">
@@ -1740,7 +1819,7 @@ function CreateAgentDialog({
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 placeholder="Ask the agent to investigate, implement, or review..."
-                className="min-h-32"
+                className="min-h-32 bg-background/60"
                 required
               />
               <span className="text-xs font-normal text-muted-foreground">
@@ -1749,7 +1828,7 @@ function CreateAgentDialog({
               </span>
             </label>
 
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <label className="flex items-center gap-2 rounded-xl border border-border/50 bg-muted/25 p-3 text-sm text-muted-foreground">
               <input
                 type="checkbox"
                 className="size-4 accent-primary"
@@ -1820,9 +1899,9 @@ function SidebarItem({
       onClick={onSelect}
       title={collapsed ? `${label}: ${count}` : undefined}
       className={cn(
-        "relative flex w-full items-center gap-2 rounded-lg text-muted-foreground transition-all outline-none hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0",
-        collapsed ? "size-11 justify-center p-0" : "px-2 py-1.5 text-left",
-        active && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+        "relative flex w-full items-center gap-2 rounded-xl text-muted-foreground transition-all outline-none hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0",
+        collapsed ? "size-11 justify-center p-0" : "px-2.5 py-2 text-left",
+        active && "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm ring-1 ring-sidebar-border/60"
       )}
     >
       <Icon aria-hidden="true" />
@@ -1846,14 +1925,15 @@ function SidebarItem({
 function EmptyBoard({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex min-h-[50vh] flex-1 items-center justify-center">
-      <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl border border-border/60 bg-card/80 shadow-sm">
-          <RocketLaunchIcon aria-hidden="true" className="size-8 text-muted-foreground/60" />
+      <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-3xl border border-border/60 bg-card/60 p-8 text-center shadow-sm backdrop-blur-sm">
+        <div className="flex size-16 items-center justify-center rounded-3xl border border-primary/20 bg-primary/10 shadow-sm">
+          <RocketLaunchIcon aria-hidden="true" className="size-8 text-primary" />
         </div>
         <div>
-          <h2 className="text-base font-semibold">No agents yet</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create a cloud agent or adjust your search to populate the board.
+          <h2 className="text-lg font-semibold tracking-tight">No agents yet</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Create a cloud agent to populate the board with status columns,
+            artifact previews, and pull request links.
           </p>
         </div>
         <Button onClick={onCreate} size="sm">
@@ -1878,17 +1958,27 @@ function FilteredEmptyBoard({
 
   return (
     <div className="flex min-h-[50vh] flex-1 items-center justify-center">
-      <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl border border-border/60 bg-card/80 shadow-sm">
+      <div className="flex w-full max-w-md flex-col items-center gap-5 rounded-3xl border border-border/60 bg-card/60 p-8 text-center shadow-sm backdrop-blur-sm">
+        <div className="flex size-16 items-center justify-center rounded-3xl border border-border/60 bg-muted/40 shadow-sm">
           <MagnifyingGlassIcon
             aria-hidden="true"
             className="size-8 text-muted-foreground/60"
           />
         </div>
         <div>
-          <h2 className="text-base font-semibold">No matching agents</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {hasQuery ? `No agents match "${query.trim()}".` : "No agents match the selected filter."}
+          <h2 className="text-lg font-semibold tracking-tight">No matching agents</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {hasQuery ? (
+              <>
+                No agents match{" "}
+                <span className="font-medium text-foreground">
+                  &quot;{query.trim()}&quot;
+                </span>
+                .
+              </>
+            ) : (
+              "No agents match the selected filter."
+            )}
             {filterLabel ? ` Filter: ${filterLabel}.` : ""}
           </p>
         </div>
@@ -1961,6 +2051,7 @@ function getStatusMeta(status: string): StatusMeta {
 function StatusBadge({ status }: { status: string }) {
   const meta = getStatusMeta(status)
   const label = formatStatusLabel(status)
+  const Icon = meta.icon
 
   return (
     <span
@@ -1970,12 +2061,9 @@ function StatusBadge({ status }: { status: string }) {
         meta.textClass
       )}
     >
-      <span
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
-          meta.dotClass,
-          meta.pulse && "animate-pulse"
-        )}
+      <Icon
+        aria-hidden="true"
+        className={cn("size-3.5 shrink-0", meta.pulse && "animate-spin")}
       />
       {label}
     </span>
@@ -2057,6 +2145,18 @@ function filterAgentsBySidebar(agents: AgentCard[], filter: SidebarFilter) {
   }
 
   return agents
+}
+
+function getBoardStats(allAgents: AgentCard[], visibleAgents: AgentCard[]) {
+  return {
+    activeCount: visibleAgents.filter((agent) =>
+      ["run", "progress", "active", "work"].some((token) =>
+        agent.status.toLowerCase().includes(token)
+      )
+    ).length,
+    artifactCount: visibleAgents.filter((agent) => agent.artifacts.length > 0).length,
+    prCount: allAgents.filter((agent) => Boolean(agent.prUrl)).length,
+  }
 }
 
 function mergeAgentLists(current: AgentCard[], incoming: AgentCard[]) {

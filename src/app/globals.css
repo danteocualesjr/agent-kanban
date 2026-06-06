@@ -123,10 +123,14 @@
   }
 
   html {
-    @apply h-full font-sans;
+    @apply h-full scroll-smooth font-sans antialiased;
   }
 
   body {
     @apply min-h-full bg-background text-foreground;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-foreground;
   }
 }
