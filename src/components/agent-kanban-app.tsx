@@ -1970,7 +1970,11 @@ function FilteredEmptyBoard({
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {hasQuery ? (
               <>
-                No agents match <span className="font-medium text-foreground">"{query.trim()}"</span>.
+                No agents match{" "}
+                <span className="font-medium text-foreground">
+                  &quot;{query.trim()}&quot;
+                </span>
+                .
               </>
             ) : (
               "No agents match the selected filter."
